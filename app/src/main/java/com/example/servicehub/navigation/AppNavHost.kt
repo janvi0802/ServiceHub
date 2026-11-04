@@ -15,8 +15,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Roles
+import com.example.servicehub.data.repository.AuthRepository
+import com.example.servicehub.ui.auth.LoginScreen
+import com.example.servicehub.ui.auth.RegisterScreen
+import com.example.servicehub.ui.profile.ProfileScreen
+import com.example.servicehub.ui.provider.PendingApprovalScreen
 import com.example.servicehub.ui.screens.PlaceholderLink
 import com.example.servicehub.ui.screens.PlaceholderScreen
+import com.example.servicehub.ui.splash.SplashScreen
 
 /**
  * The map of the whole app: which route opens which screen.
@@ -26,8 +32,7 @@ import com.example.servicehub.ui.screens.PlaceholderScreen
 fun AppNavHost() {
     val navController = rememberNavController()
 
-    // Which role is using the app. In Phase 2 this comes from Firestore after login;
-    // for now the splash screen has test buttons to pick a role.
+    // Which role is using the app (read from Firestore at login). Picks the bottom bar.
     var role by rememberSaveable { mutableStateOf<String?>(null) }
 
     // The route of the screen open right now (updates automatically).
@@ -58,32 +63,38 @@ fun AppNavHost() {
         ) {
             // ---------- Common ----------
             composable(Routes.SPLASH) {
-                // Temporary test buttons. Phase 2 replaces these with a real login check.
-                fun enterAs(newRole: String, home: String) {
-                    role = newRole
-                    navController.navigate(home) {
-                        popUpTo(Routes.SPLASH) { inclusive = true }
-                    }
-                }
-                PlaceholderScreen(
-                    title = "ServiceHub",
-                    note = "Phase 1 test: choose a role to preview its screens",
-                    links = listOf(
-                        PlaceholderLink("Login screen") { navController.navigate(Routes.LOGIN) },
-                        PlaceholderLink("Enter as Customer") { enterAs(Roles.CUSTOMER, Routes.CUSTOMER_HOME) },
-                        PlaceholderLink("Enter as Provider") { enterAs(Roles.PROVIDER, Routes.PROVIDER_HOME) },
-                        PlaceholderLink("Enter as Admin") { enterAs(Roles.ADMIN, Routes.ADMIN_DASHBOARD) },
-                    ),
+                SplashScreen(
+                    onGoToLogin = { navController.clearAndOpen(Routes.LOGIN) },
+                    onGoToHome = { destination ->
+                        role = destination.role
+                        navController.clearAndOpen(destination.route)
+                    },
                 )
             }
             composable(Routes.LOGIN) {
-                PlaceholderScreen(
-                    "Login",
-                    links = listOf(PlaceholderLink("Register") { navController.navigate(Routes.REGISTER) }),
+                LoginScreen(
+                    onLoggedIn = { destination ->
+                        role = destination.role
+                        navController.clearAndOpen(destination.route)
+                    },
+                    onGoToRegister = { navController.navigate(Routes.REGISTER) },
                 )
             }
-            composable(Routes.REGISTER) { PlaceholderScreen("Register") }
-            composable(Routes.PROFILE) { PlaceholderScreen("Profile") }
+            composable(Routes.REGISTER) {
+                RegisterScreen(
+                    onRegistered = { destination ->
+                        role = destination.role
+                        navController.clearAndOpen(destination.route)
+                    },
+                    onGoToLogin = { navController.popBackStack() },
+                )
+            }
+            composable(Routes.PROFILE) {
+                ProfileScreen(onLoggedOut = {
+                    role = null
+                    navController.clearAndOpen(Routes.LOGIN)
+                })
+            }
             composable(Routes.NOTIFICATIONS) { PlaceholderScreen("Notifications") }
 
             // ---------- Customer ----------
@@ -115,7 +126,16 @@ fun AppNavHost() {
             composable(Routes.RECEIPT) { PlaceholderScreen("Receipt") }
 
             // ---------- Provider ----------
-            composable(Routes.PENDING_APPROVAL) { PlaceholderScreen("Waiting for approval") }
+            composable(Routes.PENDING_APPROVAL) {
+                PendingApprovalScreen(
+                    onApproved = { destination -> navController.clearAndOpen(destination.route) },
+                    onLogout = {
+                        AuthRepository.logout()
+                        role = null
+                        navController.clearAndOpen(Routes.LOGIN)
+                    },
+                )
+            }
             composable(Routes.PROVIDER_HOME) { PlaceholderScreen("Provider Home") }
             composable(Routes.PROVIDER_REQUESTS) { PlaceholderScreen("Job requests") }
             composable(Routes.JOB_DETAIL) { PlaceholderScreen("Job detail") }
@@ -129,6 +149,16 @@ fun AppNavHost() {
             composable(Routes.ADMIN_SERVICES) { PlaceholderScreen("Manage services") }
             composable(Routes.ADMIN_BOOKINGS) { PlaceholderScreen("All bookings") }
         }
+    }
+}
+
+/**
+ * Opens a screen and removes every screen before it,
+ * so the phone's Back button cannot return to e.g. Login after logging in.
+ */
+private fun NavHostController.clearAndOpen(route: String) {
+    navigate(route) {
+        popUpTo(graph.id) { inclusive = true }
     }
 }
 

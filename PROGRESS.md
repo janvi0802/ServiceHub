@@ -8,8 +8,9 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 |---|---|
 | 0 – Setup | ✅ Done (builds) |
 | 1 – Skeleton | ✅ Done (tested on phone) |
-| 2 – Auth & profile | ⏳ Next |
-| 3–13 | Not started |
+| 2 – Auth & profile | ✅ Done (tested on phone) |
+| 3 – Admin & approval | ⏳ Next |
+| 4–13 | Not started |
 
 ## What works
 
@@ -18,7 +19,9 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 - Firebase project `servicehub-j0802`: Email/Password login on, Firestore (test mode) created.
 - Phase 1: theme, data models, BookingStatus enum, fixed categories/areas/slots,
   all routes as placeholder screens, bottom bar for each role.
-  Splash has temporary "Enter as Customer/Provider/Admin" buttons (removed in Phase 2).
+- Phase 2: Splash checks login and role; Login; Register (customer or provider, provider
+  starts PENDING); blocked users are logged out; Waiting-for-approval screen; Profile edit
+  (also updates providers/{uid}); Logout. Repositories: AuthRepository, UserRepository.
 
 ## Known issues / notes
 
@@ -30,4 +33,4 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 
 ## Next step
 
-Phase 2 (login, register, roles, profile).
+Phone test of Phase 2, commit, then Phase 3 (admin account, sample data, approvals).
