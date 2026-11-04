@@ -1,0 +1,150 @@
+package com.example.servicehub.data.model
+
+import com.google.firebase.firestore.Exclude
+import com.google.firebase.firestore.PropertyName
+
+/*
+ * These classes match the documents in Firestore, one class per collection.
+ *
+ * Rules Firestore needs:
+ *  - every field has a default value (so Firestore can create an empty object and fill it)
+ *  - fields are `var` when they use @PropertyName (see below)
+ *
+ * Why @PropertyName on fields starting with "is"?
+ *  Kotlin turns `isBlocked` into a getter named isBlocked(), and Firestore would then save it
+ *  as "blocked". The annotation forces the Firestore field name to stay exactly "isBlocked".
+ *
+ * Times are saved as Long = milliseconds since 1970 (System.currentTimeMillis()).
+ * Easy to sort and compare.
+ */
+
+/** Values for User.role */
+object Roles {
+    const val CUSTOMER = "customer"
+    const val PROVIDER = "provider"
+    const val ADMIN = "admin"
+}
+
+/** Values for Provider.approvalStatus */
+object ApprovalStatus {
+    const val PENDING = "PENDING"
+    const val APPROVED = "APPROVED"
+    const val REJECTED = "REJECTED"
+}
+
+/** Values for Booking.paymentStatus */
+object PaymentStatus {
+    const val PENDING = "PENDING"
+    const val PAID = "PAID"
+}
+
+/** users/{uid} : every person who has an account */
+data class User(
+    val id: String = "",
+    val name: String = "",
+    val email: String = "",
+    val phone: String = "",
+    val role: String = Roles.CUSTOMER,
+    val area: String = "",
+    val address: String = "",
+    @get:PropertyName("isBlocked") @set:PropertyName("isBlocked")
+    var isBlocked: Boolean = false,
+    val createdAt: Long = 0L,
+)
+
+/** providers/{uid} : extra details for users whose role is "provider" */
+data class Provider(
+    val id: String = "",
+    val name: String = "",
+    val phone: String = "",
+    val categoryId: String = "",
+    val area: String = "",
+    val experienceYears: Int = 0,
+    val bio: String = "",
+    val approvalStatus: String = ApprovalStatus.PENDING,
+    @get:PropertyName("isAvailable") @set:PropertyName("isAvailable")
+    var isAvailable: Boolean = true,
+    val ratingAvg: Double = 0.0,
+    val ratingCount: Int = 0,
+    val jobsCompleted: Int = 0,
+    val totalEarnings: Int = 0,
+    val createdAt: Long = 0L,
+)
+
+/** services/{id} : one service in the catalog, e.g. "Tap repair ₹149" */
+data class Service(
+    val id: String = "",
+    val categoryId: String = "",
+    val name: String = "",
+    val description: String = "",
+    val price: Int = 0,
+    val durationMins: Int = 0,
+    @get:PropertyName("isActive") @set:PropertyName("isActive")
+    var isActive: Boolean = true,
+)
+
+/** bookings/{id} : one job booked by a customer with a provider */
+data class Booking(
+    val id: String = "",
+    val customerId: String = "",
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val providerId: String = "",
+    val providerName: String = "",
+    val providerPhone: String = "",
+    val categoryId: String = "",
+    val serviceId: String = "",
+    val serviceName: String = "",
+    val servicePrice: Int = 0,
+    val visitFee: Int = 0,
+    val totalAmount: Int = 0,
+    val date: String = "",          // "2026-11-05"
+    val timeSlot: String = "",      // "Morning (9 AM – 12 PM)"
+    val address: String = "",
+    val note: String = "",
+    val status: String = BookingStatus.REQUESTED.name,
+    val startPin: String = "",      // 4 digits, shown to customer after ACCEPTED
+    val paymentMode: String = "",   // "Cash" or "UPI"
+    val paymentStatus: String = PaymentStatus.PENDING,
+    @get:PropertyName("isRated") @set:PropertyName("isRated")
+    var isRated: Boolean = false,
+    val cancelReason: String = "",
+    val rejectReason: String = "",
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L,
+    val acceptedAt: Long = 0L,
+    val startedAt: Long = 0L,
+    val completedAt: Long = 0L,
+) {
+    /**
+     * The status as an enum, which is easier to use in code than plain text.
+     * @Exclude stops Firestore from saving this as an extra field.
+     */
+    @get:Exclude
+    val bookingStatus: BookingStatus
+        get() = BookingStatus.fromName(status)
+}
+
+/** reviews/{id} : stars + comment a customer left after a completed job */
+data class Review(
+    val id: String = "",
+    val bookingId: String = "",
+    val customerId: String = "",
+    val customerName: String = "",
+    val providerId: String = "",
+    val rating: Int = 0,
+    val comment: String = "",
+    val createdAt: Long = 0L,
+)
+
+/** notifications/{id} : an in-app message for one user (no push notifications) */
+data class AppNotification(
+    val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val message: String = "",
+    val bookingId: String = "",
+    @get:PropertyName("isRead") @set:PropertyName("isRead")
+    var isRead: Boolean = false,
+    val createdAt: Long = 0L,
+)

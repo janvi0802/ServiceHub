@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "701949954531",
+    "project_id": "servicehub-j0802",
+    "storage_bucket": "servicehub-j0802.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701949954531:android:08918399ea7f3d4b5038d6",
+        "android_client_info": {
+          "package_name": "com.example.servicehub"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCiBUk7yF-2gAhBH4wdcWUJUR-t5vEKUi0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
