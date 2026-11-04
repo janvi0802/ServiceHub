@@ -9,8 +9,9 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 | 0 – Setup | ✅ Done (builds) |
 | 1 – Skeleton | ✅ Done (tested on phone) |
 | 2 – Auth & profile | ✅ Done (tested on phone) |
-| 3 – Admin & approval | ⏳ Next |
-| 4–13 | Not started |
+| 3 – Admin & approval | ✅ Done (tested on phone) |
+| 4 – Catalog & search | ⏳ Next |
+| 5–13 | Not started |
 
 ## What works
 
@@ -22,6 +23,10 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 - Phase 2: Splash checks login and role; Login; Register (customer or provider, provider
   starts PENDING); blocked users are logged out; Waiting-for-approval screen; Profile edit
   (also updates providers/{uid}); Logout. Repositories: AuthRepository, UserRepository.
+- Phase 3: Admin dashboard (live pending count, logout), Load sample data (22 services,
+  15 approved sample providers with fixed ids, so it's safe to press twice), live Pending
+  providers list with Approve / Reject. AdminRepository + SampleData.
+  Sample providers have no login (they exist only to be booked).
 
 ## Known issues / notes
 
@@ -33,4 +38,4 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 
 ## Next step
 
-Phone test of Phase 2, commit, then Phase 3 (admin account, sample data, approvals).
+Phone test of Phase 3, commit, then Phase 4 (catalog and search).

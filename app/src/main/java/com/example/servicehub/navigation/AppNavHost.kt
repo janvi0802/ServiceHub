@@ -16,6 +16,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.repository.AuthRepository
+import com.example.servicehub.ui.admin.AdminDashboardScreen
+import com.example.servicehub.ui.admin.PendingProvidersScreen
 import com.example.servicehub.ui.auth.LoginScreen
 import com.example.servicehub.ui.auth.RegisterScreen
 import com.example.servicehub.ui.profile.ProfileScreen
@@ -142,8 +144,17 @@ fun AppNavHost() {
             composable(Routes.JOB_HISTORY) { PlaceholderScreen("Job history") }
 
             // ---------- Admin ----------
-            composable(Routes.ADMIN_DASHBOARD) { PlaceholderScreen("Admin Dashboard") }
-            composable(Routes.ADMIN_PENDING_PROVIDERS) { PlaceholderScreen("Pending providers") }
+            composable(Routes.ADMIN_DASHBOARD) {
+                AdminDashboardScreen(
+                    onOpenPendingProviders = { navController.openTab(Routes.ADMIN_PENDING_PROVIDERS, Routes.ADMIN_DASHBOARD) },
+                    onOpenAllProviders = { navController.navigate(Routes.ADMIN_ALL_PROVIDERS) },
+                    onLoggedOut = {
+                        role = null
+                        navController.clearAndOpen(Routes.LOGIN)
+                    },
+                )
+            }
+            composable(Routes.ADMIN_PENDING_PROVIDERS) { PendingProvidersScreen() }
             composable(Routes.ADMIN_ALL_PROVIDERS) { PlaceholderScreen("All providers") }
             composable(Routes.ADMIN_USERS) { PlaceholderScreen("All users") }
             composable(Routes.ADMIN_SERVICES) { PlaceholderScreen("Manage services") }
