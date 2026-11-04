@@ -40,4 +40,15 @@ object Routes {
     const val ADMIN_USERS = "admin_users"
     const val ADMIN_SERVICES = "admin_services"
     const val ADMIN_BOOKINGS = "admin_bookings"
+
+    // Helpers that fill in the {values}, so we never type a route by hand.
+    fun categoryServices(categoryId: String) = "category_services/$categoryId"
+    fun providerList(categoryId: String, serviceId: String) = "provider_list/$categoryId/$serviceId"
+    fun providerDetail(providerId: String, serviceId: String) = "provider_detail/$providerId/$serviceId"
+    fun bookingForm(providerId: String, serviceId: String) = "booking_form/$providerId/$serviceId"
+    fun bookingSuccess(bookingId: String) = "booking_success/$bookingId"
+    fun bookingDetail(bookingId: String) = "booking_detail/$bookingId"
+    fun rateReview(bookingId: String) = "rate_review/$bookingId"
+    fun receipt(bookingId: String) = "receipt/$bookingId"
+    fun jobDetail(bookingId: String) = "job_detail/$bookingId"
 }

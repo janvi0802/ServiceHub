@@ -49,6 +49,15 @@ object FixedData {
         "Evening (4 PM – 8 PM)",
     )
 
+    /** Hour (24h clock) when each slot above ends: 12 PM, 4 PM, 8 PM. Same order as timeSlots. */
+    private val slotEndHours = listOf(12, 16, 20)
+
+    /** True if this slot is already over for today (so it can't be booked today). */
+    fun isSlotOverToday(slot: String, currentHour: Int): Boolean {
+        val index = timeSlots.indexOf(slot)
+        return index >= 0 && currentHour >= slotEndHours[index]
+    }
+
     val paymentModes = listOf("Cash", "UPI")
 
     /** Fixed visit charge added to every booking, in rupees. */

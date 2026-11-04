@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -13,25 +15,53 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.ui.admin.AdminDashboardScreen
 import com.example.servicehub.ui.admin.PendingProvidersScreen
 import com.example.servicehub.ui.auth.LoginScreen
 import com.example.servicehub.ui.auth.RegisterScreen
+import com.example.servicehub.ui.customer.BookingDetailScreen
+import com.example.servicehub.ui.customer.BookingFormScreen
+import com.example.servicehub.ui.customer.BookingSuccessScreen
+import com.example.servicehub.ui.customer.CategoryServicesScreen
+import com.example.servicehub.ui.customer.CustomerHomeScreen
+import com.example.servicehub.ui.customer.MyBookingsScreen
+import com.example.servicehub.ui.customer.ProviderDetailScreen
+import com.example.servicehub.ui.customer.ProviderListScreen
+import com.example.servicehub.ui.customer.SearchScreen
+import com.example.servicehub.ui.provider.JobDetailScreen
+import com.example.servicehub.ui.provider.JobHistoryScreen
+import com.example.servicehub.ui.provider.ProviderHomeScreen
+import com.example.servicehub.ui.provider.ProviderRequestsScreen
 import com.example.servicehub.ui.profile.ProfileScreen
 import com.example.servicehub.ui.provider.PendingApprovalScreen
-import com.example.servicehub.ui.screens.PlaceholderLink
 import com.example.servicehub.ui.screens.PlaceholderScreen
 import com.example.servicehub.ui.splash.SplashScreen
 
 /**
- * The map of the whole app: which route opens which screen.
- * Also decides which bottom bar to show.
+ * Starts a fresh navigation "session" after every logout.
+ *
+ * Why: bottom-bar tabs remember their screens (and the data inside them).
+ * Without this, after logging out and in as ANOTHER person, a tab could show
+ * the previous person's data. Changing [session] makes key() throw away the old
+ * NavController with everything it remembered, and build a brand new one.
  */
 @Composable
 fun AppNavHost() {
+    var session by rememberSaveable { mutableIntStateOf(0) }
+    key(session) {
+        SessionNavHost(onLoggedOut = { session++ })
+    }
+}
+
+/**
+ * The map of the whole app: which route opens which screen.
+ * Also decides which bottom bar to show.
+ * [onLoggedOut] must be called after AuthRepository.logout().
+ */
+@Composable
+private fun SessionNavHost(onLoggedOut: () -> Unit) {
     val navController = rememberNavController()
 
     // Which role is using the app (read from Firestore at login). Picks the bottom bar.
@@ -92,38 +122,83 @@ fun AppNavHost() {
                 )
             }
             composable(Routes.PROFILE) {
-                ProfileScreen(onLoggedOut = {
-                    role = null
-                    navController.clearAndOpen(Routes.LOGIN)
-                })
+                ProfileScreen(onLoggedOut = onLoggedOut)
             }
             composable(Routes.NOTIFICATIONS) { PlaceholderScreen("Notifications") }
 
             // ---------- Customer ----------
             composable(Routes.CUSTOMER_HOME) {
-                // One test link per category, to check routes that carry a value.
-                PlaceholderScreen(
-                    "Customer Home",
-                    note = "Categories + search will appear here",
-                    links = FixedData.categories.map { category ->
-                        PlaceholderLink(category.name) {
-                            navController.navigate("category_services/${category.id}")
+                CustomerHomeScreen(
+                    onOpenSearch = { navController.navigate(Routes.SEARCH) },
+                    onOpenCategory = { categoryId -> navController.navigate(Routes.categoryServices(categoryId)) },
+                )
+            }
+            composable(Routes.SEARCH) {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onServiceClick = { service ->
+                        navController.navigate(Routes.providerList(service.categoryId, service.id))
+                    },
+                )
+            }
+            composable(Routes.CATEGORY_SERVICES) { entry ->
+                CategoryServicesScreen(
+                    categoryId = entry.arguments?.getString("categoryId").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                    onServiceClick = { service ->
+                        navController.navigate(Routes.providerList(service.categoryId, service.id))
+                    },
+                )
+            }
+            composable(Routes.PROVIDER_LIST) {
+                ProviderListScreen(
+                    onBack = { navController.popBackStack() },
+                    onProviderClick = { providerId, serviceId ->
+                        navController.navigate(Routes.providerDetail(providerId, serviceId))
+                    },
+                )
+            }
+            composable(Routes.PROVIDER_DETAIL) {
+                ProviderDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onBook = { providerId, serviceId ->
+                        navController.navigate(Routes.bookingForm(providerId, serviceId))
+                    },
+                )
+            }
+            composable(Routes.BOOKING_FORM) {
+                BookingFormScreen(
+                    onBack = { navController.popBackStack() },
+                    onBooked = { bookingId ->
+                        // Remove the form, provider and service screens: Back now goes to Home.
+                        navController.navigate(Routes.bookingSuccess(bookingId)) {
+                            popUpTo(Routes.CUSTOMER_HOME)
                         }
                     },
                 )
             }
-            composable(Routes.SEARCH) { PlaceholderScreen("Search results") }
-            composable(Routes.CATEGORY_SERVICES) { entry ->
-                val categoryId = entry.arguments?.getString("categoryId").orEmpty()
-                val name = FixedData.categoryById(categoryId)?.name ?: categoryId
-                PlaceholderScreen("$name services")
+            composable(Routes.BOOKING_SUCCESS) { entry ->
+                val bookingId = entry.arguments?.getString("bookingId").orEmpty()
+                BookingSuccessScreen(
+                    bookingId = bookingId,
+                    onViewBooking = {
+                        navController.navigate(Routes.bookingDetail(bookingId)) {
+                            popUpTo(Routes.CUSTOMER_HOME)
+                        }
+                    },
+                    onGoHome = { navController.popBackStack(Routes.CUSTOMER_HOME, inclusive = false) },
+                )
             }
-            composable(Routes.PROVIDER_LIST) { PlaceholderScreen("Provider list") }
-            composable(Routes.PROVIDER_DETAIL) { PlaceholderScreen("Provider detail") }
-            composable(Routes.BOOKING_FORM) { PlaceholderScreen("Booking form") }
-            composable(Routes.BOOKING_SUCCESS) { PlaceholderScreen("Booking success") }
-            composable(Routes.MY_BOOKINGS) { PlaceholderScreen("My Bookings") }
-            composable(Routes.BOOKING_DETAIL) { PlaceholderScreen("Booking detail") }
+            composable(Routes.MY_BOOKINGS) {
+                MyBookingsScreen(onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) })
+            }
+            composable(Routes.BOOKING_DETAIL) {
+                BookingDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onRate = { id -> navController.navigate(Routes.rateReview(id)) },
+                    onReceipt = { id -> navController.navigate(Routes.receipt(id)) },
+                )
+            }
             composable(Routes.RATE_REVIEW) { PlaceholderScreen("Rate & review") }
             composable(Routes.RECEIPT) { PlaceholderScreen("Receipt") }
 
@@ -133,25 +208,32 @@ fun AppNavHost() {
                     onApproved = { destination -> navController.clearAndOpen(destination.route) },
                     onLogout = {
                         AuthRepository.logout()
-                        role = null
-                        navController.clearAndOpen(Routes.LOGIN)
+                        onLoggedOut()
                     },
                 )
             }
-            composable(Routes.PROVIDER_HOME) { PlaceholderScreen("Provider Home") }
-            composable(Routes.PROVIDER_REQUESTS) { PlaceholderScreen("Job requests") }
-            composable(Routes.JOB_DETAIL) { PlaceholderScreen("Job detail") }
-            composable(Routes.JOB_HISTORY) { PlaceholderScreen("Job history") }
+            composable(Routes.PROVIDER_HOME) {
+                ProviderHomeScreen(
+                    onJobClick = { id -> navController.navigate(Routes.jobDetail(id)) },
+                    onOpenRequests = { navController.openTab(Routes.PROVIDER_REQUESTS, Routes.PROVIDER_HOME) },
+                )
+            }
+            composable(Routes.PROVIDER_REQUESTS) {
+                ProviderRequestsScreen(onJobClick = { id -> navController.navigate(Routes.jobDetail(id)) })
+            }
+            composable(Routes.JOB_DETAIL) {
+                JobDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.JOB_HISTORY) {
+                JobHistoryScreen(onJobClick = { id -> navController.navigate(Routes.jobDetail(id)) })
+            }
 
             // ---------- Admin ----------
             composable(Routes.ADMIN_DASHBOARD) {
                 AdminDashboardScreen(
                     onOpenPendingProviders = { navController.openTab(Routes.ADMIN_PENDING_PROVIDERS, Routes.ADMIN_DASHBOARD) },
                     onOpenAllProviders = { navController.navigate(Routes.ADMIN_ALL_PROVIDERS) },
-                    onLoggedOut = {
-                        role = null
-                        navController.clearAndOpen(Routes.LOGIN)
-                    },
+                    onLoggedOut = onLoggedOut,
                 )
             }
             composable(Routes.ADMIN_PENDING_PROVIDERS) { PendingProvidersScreen() }
