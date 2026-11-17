@@ -4,28 +4,40 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** A colored circle with the person's initials, e.g. "Janvi Panchal" -> "JP". */
+/** Soft background colours for avatars. Each person always gets the same one. */
+private val avatarColors = listOf(
+    Color(0xFFDDE5FF), Color(0xFFFFE0B2), Color(0xFFC8E6C9), Color(0xFFF8BBD0),
+    Color(0xFFD1C4E9), Color(0xFFB2EBF2), Color(0xFFFFF59D), Color(0xFFD7CCC8),
+)
+
+/**
+ * Picks a colour from the name, so "Ramesh Patel" is always the same colour on every phone.
+ * hashCode() turns the text into a number; % keeps it inside the list.
+ */
+fun avatarColorIndex(name: String): Int = Math.floorMod(name.trim().lowercase().hashCode(), avatarColors.size)
+
+/** A coloured circle with the person's initials, e.g. "Janvi Panchal" -> "JP". */
 @Composable
 fun Avatar(name: String, size: Dp = 48.dp) {
     Box(
         modifier = Modifier
             .size(size)
-            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            .background(avatarColors[avatarColorIndex(name)], CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = initialsOf(name),
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            color = Color(0xFF1B1D29),
             fontWeight = FontWeight.Bold,
             fontSize = (size.value * 0.4f).sp,
         )

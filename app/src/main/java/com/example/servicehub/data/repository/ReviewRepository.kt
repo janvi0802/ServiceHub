@@ -33,7 +33,7 @@ object ReviewRepository {
         val bookingRef = db.collection("bookings").document(bookingId)
         val reviewRef = db.collection("reviews").document(bookingId)
 
-        db.runTransaction<Unit> { transaction ->
+        val booking = db.runTransaction<Booking> { transaction ->
             // --- all reads first (Firestore rule for transactions)
             val booking = transaction.get(bookingRef).toObject(Booking::class.java)
                 ?: throw BookingException("Booking not found.")
@@ -62,7 +62,16 @@ object ReviewRepository {
                 ),
             )
             transaction.update(bookingRef, "isRated", true)
-            Unit
+            booking
         }.await()
+
+        // Tell the provider about their new review
+        val stars = "★".repeat(rating)
+        NotificationRepository.send(
+            booking.providerId, "New review $stars",
+            "${booking.customerName} rated your ${booking.serviceName} $rating/5" +
+                if (comment.isNotBlank()) ": \"$comment\"" else ".",
+            bookingId,
+        )
     }
 }

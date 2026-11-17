@@ -12,6 +12,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.HomeRepairService
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalContext
+import com.example.servicehub.ui.components.receiptShareText
+import com.example.servicehub.ui.components.shareText
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -44,9 +49,17 @@ fun ReceiptScreen(
     viewModel: BookingDetailViewModel = viewModel(),   // reuses the live booking loader
 ) {
     val load by viewModel.booking.collectAsState()
+    val context = LocalContext.current
+    val loaded = (load as? BookingLoad.Loaded)?.booking
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Receipt", onBack)
+        ScreenHeader("Receipt", onBack) {
+            if (loaded != null && loaded.bookingStatus == BookingStatus.COMPLETED) {
+                IconButton(onClick = { shareText(context, "ServiceHub receipt", receiptShareText(loaded)) }) {
+                    Icon(Icons.Filled.Share, contentDescription = "Share receipt")
+                }
+            }
+        }
         val b = when (val l = load) {
             BookingLoad.Loading -> { LoadingBox(); return@Column }
             BookingLoad.NotFound -> { EmptyBox("Booking not found."); return@Column }

@@ -31,8 +31,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
+import com.example.servicehub.data.model.Provider
+import com.example.servicehub.data.model.isTopRated
+import com.example.servicehub.ui.theme.BrandOrange
+import com.example.servicehub.ui.theme.StatusCompleted
 
 /** Title row at the top of a screen, with a back arrow when [onBack] is given. */
 @Composable
@@ -66,12 +75,51 @@ fun LoadingBox() {
     }
 }
 
-/** Message in the middle of the screen, e.g. "No bookings yet". */
+/** Icon + message in the middle of the screen, e.g. "No bookings yet". */
 @Composable
-fun EmptyBox(message: String) {
+fun EmptyBox(message: String, icon: ImageVector = Icons.Filled.Inbox) {
     Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Text(message, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyLarge)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                icon, contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                modifier = Modifier.size(64.dp),
+            )
+            Text(
+                message,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
     }
+}
+
+/** Small "✔ Verified" and "★ Top rated" labels shown next to a provider. */
+@Composable
+fun ProviderBadges(provider: Provider) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (provider.approvalStatus == ApprovalStatus.APPROVED) {
+            SmallBadge("✔ Verified", StatusCompleted)
+        }
+        if (isTopRated(provider)) {
+            SmallBadge("★ Top rated", BrandOrange)
+        }
+    }
+}
+
+@Composable
+private fun SmallBadge(text: String, color: Color) {
+    Text(
+        text,
+        color = color,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
 }
 
 /** A small colored label showing a booking status. */
@@ -81,7 +129,11 @@ fun StatusChip(status: BookingStatus) = StatusChip(status.label, status.color)
 /** Status label for a whole booking: shows "Expired" (grey) for old unanswered requests. */
 @Composable
 fun BookingStatusChip(booking: Booking) {
-    if (booking.isExpired) StatusChip("Expired", Color.Gray) else StatusChip(booking.bookingStatus)
+    when {
+        booking.isExpired -> StatusChip("Expired", Color.Gray)
+        booking.isOverdue -> StatusChip("Overdue", Color(0xFFE8710A))   // orange: provider is late
+        else -> StatusChip(booking.bookingStatus)
+    }
 }
 
 @Composable
@@ -144,6 +196,42 @@ fun ConfirmDialog(
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
     )
+}
+
+/**
+ * Opens Android's share menu (WhatsApp, SMS, email...) with [text].
+ * ACTION_SEND is built into Android, so no library or permission is needed.
+ */
+fun shareText(context: Context, subject: String, text: String) {
+    val send = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(send, "Share via"))
+}
+
+/** Plain-text version of a booking, for sharing (e.g. with family: who is coming and when). */
+fun bookingShareText(b: Booking): String = buildString {
+    appendLine("ServiceHub booking ${b.id.take(8).uppercase()}")
+    appendLine("${b.serviceName} with ${b.providerName}")
+    appendLine("${DateUtils.pretty(b.date)}, ${b.timeSlot}")
+    appendLine("Address: ${b.address}")
+    appendLine("Total: ${rupees(b.totalAmount)} (${b.paymentMode})")
+    append("Status: ${b.bookingStatus.label}")
+}
+
+/** Plain-text receipt for a completed booking. */
+fun receiptShareText(b: Booking): String = buildString {
+    appendLine("ServiceHub – Receipt")
+    appendLine("Booking ID: ${b.id.take(8).uppercase()}")
+    appendLine("Service: ${b.serviceName}")
+    appendLine("Provider: ${b.providerName}")
+    appendLine("Date: ${DateUtils.pretty(b.date)}, ${b.timeSlot}")
+    appendLine("Service price: ${rupees(b.servicePrice)}")
+    appendLine("Visit fee: ${rupees(b.visitFee)}")
+    appendLine("Total paid: ${rupees(b.totalAmount)} by ${b.paymentMode}")
+    append("Thank you for choosing ServiceHub!")
 }
 
 /**

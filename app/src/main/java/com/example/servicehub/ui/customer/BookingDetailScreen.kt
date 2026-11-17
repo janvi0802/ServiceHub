@@ -13,6 +13,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.IconButton
+import com.example.servicehub.ui.components.bookingShareText
+import com.example.servicehub.ui.components.shareText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -48,6 +52,7 @@ import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ReasonDialog
 import com.example.servicehub.ui.components.ScreenHeader
 import com.example.servicehub.ui.components.StatusSteps
+import com.example.servicehub.ui.components.TimelineCard
 import com.example.servicehub.ui.components.openDialer
 import java.util.Calendar
 
@@ -70,7 +75,14 @@ fun BookingDetailScreen(
     var showReschedule by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Booking details", onBack)
+        val loadedBooking = (load as? BookingLoad.Loaded)?.booking
+        ScreenHeader("Booking details", onBack) {
+            if (loadedBooking != null) {
+                IconButton(onClick = { shareText(context, "My ServiceHub booking", bookingShareText(loadedBooking)) }) {
+                    Icon(Icons.Filled.Share, contentDescription = "Share booking")
+                }
+            }
+        }
         val booking = when (val l = load) {
             BookingLoad.Loading -> { LoadingBox(); return@Column }
             BookingLoad.NotFound -> { EmptyBox("Booking not found."); return@Column }
@@ -90,6 +102,12 @@ fun BookingDetailScreen(
                         "You can reschedule, cancel, or find another provider.",
                     color = MaterialTheme.colorScheme.error,
                 )
+            } else if (booking.isOverdue) {
+                Text(
+                    "The provider has not started this job yet (it was for ${DateUtils.pretty(booking.date)}). " +
+                        "Call them, reschedule, or cancel.",
+                    color = MaterialTheme.colorScheme.error,
+                )
             } else {
                 StatusHint(status, cancelledByProvider = booking.cancelReason.startsWith(PROVIDER_CANCEL_PREFIX))
             }
@@ -98,6 +116,7 @@ fun BookingDetailScreen(
             if (status == BookingStatus.ACCEPTED) PinCard(booking.startPin)
 
             BookingInfoCard(booking, "Provider", booking.providerName)
+            TimelineCard(booking)
 
             if (booking.bookingStatus.isActive) {
                 OutlinedButton(

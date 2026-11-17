@@ -61,6 +61,19 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC43 | Provider cancels | Provider accepts → "Can't come? Cancel this job" + reason | Customer sees Cancelled, "The provider cancelled this job", and gets a notification; slot is free again | |
 | TC44 | Provider profile | Provider → Profile → change bio and experience → Save | Customer sees the new bio and years on the provider page | |
 | TC45 | Version | Profile → bottom | "ServiceHub version 1.0" | |
+| TC46 | Dark mode | Turn phone dark mode ON, open the app | Clock/battery icons at the top are still visible (dark) | |
+| TC47 | Keyboard | Register / Booking form: tap the last field | Screen moves up; field and button stay visible above the keyboard | |
+| TC48 | Category tiles | Customer Home | Each category has its own colour and "from ₹..." price | |
+| TC49 | Next booking card | Customer with an open booking → Home | "Your next booking" card with status (and PIN once accepted); tap opens it | |
+| TC50 | Rate reminder | After a completed, unrated job → Home | "How was your ...?" card; tap opens Rate screen; disappears after rating | |
+| TC51 | Badges | Provider list | "✔ Verified" on every provider; "★ Top rated" only with 4.5+ from 3+ reviews | |
+| TC52 | Sort | Provider list → Sort: Experience / Jobs done | Order changes accordingly | |
+| TC53 | Timeline | Open a completed booking (both phones) | Timeline shows Requested → Accepted → Started → Completed with times | |
+| TC54 | Share | Booking detail share icon; Receipt share icon | Android share menu opens with booking / receipt text | |
+| TC55 | Search category | Search "plumber" | All plumber services shown | |
+| TC56 | Review alert | Customer rates a job | Provider gets "New review ★★★★" notification | |
+| TC57 | Overdue | Accepted job from a past day, not started | Orange "Overdue" chip and message on both sides | |
+| TC58 | Admin insights | Admin dashboard | "Expired" count row and "Top providers" list | |
 
 ## Automatic tests (no phone needed)
 
@@ -68,9 +81,11 @@ Mark each row ✅ or ❌ and note what you saw.
 gradlew.bat testDebugUnitTest
 ```
 
-16 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
+26 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
 dates and slots, price total, sample data completeness, provider job lists and earnings,
-rating average, admin dashboard counts, busy-slot ids, expired requests.
+rating average, admin dashboard counts and top providers, busy-slot ids, expired and overdue
+bookings, top-rated badge, avatar colours, provider sorting, timeline, next booking and rate
+reminder, "from ₹" prices, search, receipt text.
 
 ## Make a signed release APK (to share or install without Android Studio)
 

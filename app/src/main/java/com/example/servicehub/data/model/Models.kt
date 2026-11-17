@@ -74,6 +74,9 @@ data class Provider(
     val createdAt: Long = 0L,
 )
 
+/** "Top rated" badge: at least 4.5 stars from at least 3 reviews (so one lucky 5★ is not enough). */
+fun isTopRated(provider: Provider): Boolean = provider.ratingCount >= 3 && provider.ratingAvg >= 4.5
+
 /** services/{id} : one service in the catalog, e.g. "Tap repair ₹149" */
 data class Service(
     val id: String = "",
@@ -132,11 +135,20 @@ data class Booking(
     val isExpired: Boolean
         get() = isRequestExpired(this, DateUtils.today(), Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
 
+    /** Accepted for a day that is already over, but never started (the provider is late). */
+    @get:Exclude
+    val isOverdue: Boolean
+        get() = isAcceptedOverdue(this, DateUtils.today())
+
     /** Active and not expired: shown under "Active" and blocks actions like Accept. */
     @get:Exclude
     val isOpen: Boolean
         get() = bookingStatus.isActive && !isExpired
 }
+
+/** ACCEPTED, and its date is before today. It stays open (the job can still happen) but is flagged. */
+fun isAcceptedOverdue(booking: Booking, today: String): Boolean =
+    booking.bookingStatus == BookingStatus.ACCEPTED && booking.date < today
 
 /**
  * A request expires when nobody accepted it before its time:

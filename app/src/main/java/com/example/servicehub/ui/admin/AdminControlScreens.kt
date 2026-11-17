@@ -373,12 +373,18 @@ private fun EditServiceDialog(service: Service, onSave: (Int, String) -> Unit, o
 fun AdminBookingsScreen(viewModel: AdminControlViewModel = viewModel()) {
     val bookings by viewModel.bookings.collectAsState()
     var filter by rememberSaveable { mutableStateOf("All") }
-    val options = listOf("All") + BookingStatus.entries.map { it.label }
+    val options = listOf("All") + BookingStatus.entries.map { it.label } + "Expired"
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("All bookings")
         FilterRow(options, filter) { filter = it }
-        val shown: List<Booking>? = bookings?.filter { filter == "All" || it.bookingStatus.label == filter }
+        val shown: List<Booking>? = bookings?.filter {
+            when (filter) {
+                "All" -> true
+                "Expired" -> it.isExpired
+                else -> it.bookingStatus.label == filter && !it.isExpired   // "Requested" = still waiting
+            }
+        }
 
         ListOrState(shown, "No bookings here.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

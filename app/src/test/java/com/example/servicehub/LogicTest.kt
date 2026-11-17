@@ -10,6 +10,15 @@ import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.model.isRequestExpired
+import com.example.servicehub.data.model.isAcceptedOverdue
+import com.example.servicehub.data.model.isTopRated
+import com.example.servicehub.ui.components.avatarColorIndex
+import com.example.servicehub.ui.components.receiptShareText
+import com.example.servicehub.ui.components.timelineSteps
+import com.example.servicehub.ui.customer.CustomerHomeViewModel
+import com.example.servicehub.ui.customer.ProviderSort
+import com.example.servicehub.ui.customer.matchesSearch
+import com.example.servicehub.ui.customer.sortProviders
 import com.example.servicehub.data.repository.newAverage
 import com.example.servicehub.data.repository.slotDocId
 import com.example.servicehub.ui.admin.DashboardStats
@@ -221,6 +230,107 @@ class LogicTest {
         // accepted / completed bookings never "expire"
         assertFalse(isRequestExpired(req("2026-11-19", morning, "ACCEPTED"), today, 9))
         assertFalse(isRequestExpired(req("2026-11-19", morning, "COMPLETED"), today, 9))
+    }
+
+    // ------------------------------------------------ polish features
+
+    @Test
+    fun overdue_onlyAcceptedJobsFromPastDays() {
+        val today = "2026-11-20"
+        assertTrue(isAcceptedOverdue(Booking(status = "ACCEPTED", date = "2026-11-19"), today))
+        assertFalse(isAcceptedOverdue(Booking(status = "ACCEPTED", date = today), today))
+        assertFalse(isAcceptedOverdue(Booking(status = "IN_PROGRESS", date = "2026-11-19"), today))
+    }
+
+    @Test
+    fun topRated_needsHighRatingAndEnoughReviews() {
+        assertTrue(isTopRated(Provider(ratingAvg = 4.6, ratingCount = 3)))
+        assertFalse(isTopRated(Provider(ratingAvg = 5.0, ratingCount = 1)))   // one review is not enough
+        assertFalse(isTopRated(Provider(ratingAvg = 4.2, ratingCount = 10)))
+    }
+
+    @Test
+    fun avatarColor_sameNameSameColour() {
+        assertEquals(avatarColorIndex("Ramesh Patel"), avatarColorIndex("  ramesh patel "))
+        assertTrue(avatarColorIndex("Any Name") in 0..7)
+    }
+
+    @Test
+    fun providerSort_ordersBestFirst() {
+        val a = Provider(id = "a", name = "A", ratingAvg = 4.0, experienceYears = 10, jobsCompleted = 1)
+        val b = Provider(id = "b", name = "B", ratingAvg = 4.8, experienceYears = 2, jobsCompleted = 9)
+        val c = Provider(id = "c", name = "C", ratingAvg = 3.0, experienceYears = 5, jobsCompleted = 20)
+        val list = listOf(a, b, c)
+        assertEquals(listOf("b", "a", "c"), sortProviders(list, ProviderSort.RATING).map { it.id })
+        assertEquals(listOf("a", "c", "b"), sortProviders(list, ProviderSort.EXPERIENCE).map { it.id })
+        assertEquals(listOf("c", "b", "a"), sortProviders(list, ProviderSort.JOBS).map { it.id })
+    }
+
+    @Test
+    fun timeline_showsOnlyWhatHappened() {
+        val done = Booking(status = "COMPLETED", createdAt = 1, acceptedAt = 2, startedAt = 3, completedAt = 4)
+        assertEquals(listOf("Requested", "Accepted", "Started", "Completed"), timelineSteps(done).map { it.first })
+        val waiting = Booking(status = "REQUESTED", createdAt = 1)
+        assertEquals(listOf("Requested"), timelineSteps(waiting).map { it.first })
+        val cancelled = Booking(status = "CANCELLED", createdAt = 1, updatedAt = 5)
+        assertEquals(listOf("Requested", "Cancelled"), timelineSteps(cancelled).map { it.first })
+    }
+
+    @Test
+    fun customerHome_upcomingAndRateReminder() {
+        val (morning, afternoon) = FixedData.timeSlots
+        val list = listOf(
+            Booking(id = "later", status = "ACCEPTED", date = "2099-01-02", timeSlot = morning),
+            Booking(id = "soon", status = "REQUESTED", date = "2099-01-01", timeSlot = afternoon),
+            Booking(id = "soonest", status = "ACCEPTED", date = "2099-01-01", timeSlot = morning),
+            Booking(id = "old", status = "COMPLETED", completedAt = 10, isRated = false),
+            Booking(id = "newer", status = "COMPLETED", completedAt = 20, isRated = false),
+            Booking(id = "rated", status = "COMPLETED", completedAt = 30, isRated = true),
+        )
+        assertEquals("soonest", CustomerHomeViewModel.nextUpcoming(list)?.id)
+        assertEquals("newer", CustomerHomeViewModel.rateReminder(list)?.id)
+        assertEquals(null, CustomerHomeViewModel.nextUpcoming(emptyList()))
+    }
+
+    @Test
+    fun customerHome_fromPriceIgnoresHiddenServices() {
+        val services = SampleData.services.map { if (it.name == "Tap repair") it.copy(isActive = false) else it }
+        val prices = CustomerHomeViewModel.minPriceByCategory(services)
+        assertEquals(299, prices["plumber"])   // tap repair (149) hidden -> pipe leakage (299)
+        assertEquals(99, prices["electrician"])
+    }
+
+    @Test
+    fun search_matchesServiceOrCategoryName() {
+        val tap = SampleData.services.first { it.name == "Tap repair" }
+        assertTrue(matchesSearch(tap, "tap"))
+        assertTrue(matchesSearch(tap, "PLUMB"))
+        assertFalse(matchesSearch(tap, "fan"))
+    }
+
+    @Test
+    fun dashboard_topProvidersAndExpiredCount() {
+        val providers = listOf(
+            Provider(id = "x", approvalStatus = ApprovalStatus.APPROVED, ratingAvg = 4.9, ratingCount = 5),
+            Provider(id = "y", approvalStatus = ApprovalStatus.APPROVED, ratingAvg = 4.9, ratingCount = 2, jobsCompleted = 8),
+            Provider(id = "z", approvalStatus = ApprovalStatus.APPROVED),                    // no work yet -> not listed
+            Provider(id = "p", approvalStatus = ApprovalStatus.PENDING, ratingAvg = 5.0, ratingCount = 9), // not approved
+        )
+        assertEquals(listOf("y", "x"), DashboardStats.topProviders(providers).map { it.id })
+
+        val expired = Booking(status = "REQUESTED", date = "2000-01-01", timeSlot = FixedData.timeSlots[0])
+        val stats = DashboardStats.from(emptyList(), emptyList(), listOf(expired))
+        assertEquals(1, stats.expiredRequests)
+        assertEquals(0, stats.bookingsByStatus[BookingStatus.REQUESTED])
+    }
+
+    @Test
+    fun receiptText_hasTheImportantFacts() {
+        val b = Booking(id = "abcdefghij", serviceName = "Tap repair", servicePrice = 149, visitFee = 49, totalAmount = 198, paymentMode = "UPI")
+        val text = receiptShareText(b)
+        assertTrue(text.contains("ABCDEFGH"))
+        assertTrue(text.contains("Tap repair"))
+        assertTrue(text.contains("₹198 by UPI"))
     }
 
     @Test

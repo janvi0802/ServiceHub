@@ -11,9 +11,9 @@ Individual academic project · Kotlin · Jetpack Compose · Firebase (free Spark
 
 | Role | Features |
 |---|---|
-| Customer | Register/login, forgot password, categories, search, service prices, provider list with area filter, provider profile with reviews, booking form (date, slot, address, note, Cash/UPI, price summary), live status tracking, start PIN, cancel, reschedule, call provider, rate & review, receipt, book again, notifications, profile with saved address |
+| Customer | Register/login, forgot password, colourful categories with "from ₹" prices, next-booking card, rate reminder, search by service or category, provider sorting (rating/experience/jobs) with Verified / Top rated badges, booking timeline with real times, share booking and receipt, service prices, provider list with area filter, provider profile with reviews, booking form (date, slot, address, note, Cash/UPI, price summary), live status tracking, start PIN, cancel, reschedule, call provider, rate & review, receipt, book again, notifications, profile with saved address |
 | Provider | Register (waits for admin approval), availability switch, new requests (accept/reject with reason, with confirm popups), start job with customer's PIN, complete with payment confirmation, today's jobs, earnings, recent reviews, job history, notifications |
-| Admin | Dashboard counts, approve/reject providers, block/unblock users, edit service prices and descriptions, hide/show services, all bookings with status filter, all providers, one-time sample data |
+| Admin | Dashboard counts (incl. expired requests) and top providers, approve/reject providers, block/unblock users, edit service prices and descriptions, hide/show services, all bookings with status filter, all providers, one-time sample data |
 
 ## Tech stack
 

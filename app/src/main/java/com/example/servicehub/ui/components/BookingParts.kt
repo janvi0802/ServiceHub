@@ -110,6 +110,49 @@ fun StatusSteps(status: BookingStatus) {
     }
 }
 
+/**
+ * The moments that really happened, in order, e.g.
+ * ("Requested", 10:02), ("Accepted", 10:15), ("Started", 11:30), ("Completed", 12:40).
+ * Times that are 0 have not happened yet and are left out.
+ */
+fun timelineSteps(booking: Booking): List<Pair<String, Long>> {
+    val steps = mutableListOf("Requested" to booking.createdAt)
+    if (booking.acceptedAt > 0) steps += "Accepted" to booking.acceptedAt
+    if (booking.startedAt > 0) steps += "Started" to booking.startedAt
+    if (booking.completedAt > 0) steps += "Completed" to booking.completedAt
+    when (booking.bookingStatus) {
+        BookingStatus.REJECTED -> steps += "Rejected" to booking.updatedAt
+        BookingStatus.CANCELLED -> steps += "Cancelled" to booking.updatedAt
+        else -> Unit
+    }
+    return steps.filter { it.second > 0 }
+}
+
+/** A small "what happened when" list under the status steps. */
+@Composable
+fun TimelineCard(booking: Booking) {
+    val steps = timelineSteps(booking)
+    if (steps.isEmpty()) return
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Timeline", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            steps.forEachIndexed { index, (label, time) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // the newest step gets a filled dot
+                    Box(
+                        Modifier.size(10.dp).background(
+                            if (index == steps.lastIndex) MaterialTheme.colorScheme.primary else Color.LightGray,
+                            CircleShape,
+                        )
+                    )
+                    Text(label, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 10.dp).weight(1f))
+                    Text(DateUtils.dateTime(time), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LineSegment(visible: Boolean, color: Color) {
     Box(

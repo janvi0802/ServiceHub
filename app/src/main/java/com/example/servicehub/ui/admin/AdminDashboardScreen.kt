@@ -25,9 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.graphics.Color
+import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.BookingStatus
+import com.example.servicehub.ui.components.Avatar
 import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.StatusChip
+import com.example.servicehub.ui.components.ratingText
 import com.example.servicehub.ui.components.rupees
 
 /** Admin home: live counts, shortcuts, sample data and logout. */
@@ -89,13 +93,30 @@ fun AdminDashboardScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Bookings by status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     BookingStatus.entries.forEach { status ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            StatusChip(status)
-                            Text(
-                                (s.bookingsByStatus[status] ?: 0).toString(),
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f).padding(start = 12.dp),
-                            )
+                        StatusCountRow({ StatusChip(status) }, s.bookingsByStatus[status] ?: 0)
+                    }
+                    StatusCountRow({ StatusChip("Expired", Color.Gray) }, s.expiredRequests)
+                }
+            }
+
+            // Top providers
+            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenAllProviders)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Top providers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (s.topProviders.isEmpty()) {
+                        Text("No ratings or completed jobs yet.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    s.topProviders.forEachIndexed { index, p ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("${index + 1}.", fontWeight = FontWeight.Bold)
+                            Avatar(p.name, 36.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text(p.name, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "${FixedData.categoryById(p.categoryId)?.name.orEmpty()} • ${ratingText(p.ratingAvg, p.ratingCount)} • ${p.jobsCompleted} jobs",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         }
                     }
                 }
@@ -117,6 +138,14 @@ fun AdminDashboardScreen(
                 sample.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             }
         }
+    }
+}
+
+@Composable
+private fun StatusCountRow(chip: @Composable () -> Unit, count: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        chip()
+        Text(count.toString(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).padding(start = 12.dp))
     }
 }
 

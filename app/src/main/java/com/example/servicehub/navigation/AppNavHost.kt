@@ -1,5 +1,7 @@
 package com.example.servicehub.navigation
 
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -123,7 +125,13 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
         NavHost(
             navController = navController,
             startDestination = Routes.SPLASH,
-            modifier = Modifier.padding(innerPadding),
+            // padding: room for the bottom bar and status bar.
+            // imePadding: when the keyboard opens, the screen moves up so fields and
+            // buttons are not hidden behind it.
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
+                .imePadding(),
         ) {
             // ---------- Common ----------
             composable(Routes.SPLASH) {
@@ -169,6 +177,8 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 CustomerHomeScreen(
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
                     onOpenCategory = { categoryId -> navController.navigate(Routes.categoryServices(categoryId)) },
+                    onOpenBooking = { id -> navController.navigate(Routes.bookingDetail(id)) },
+                    onRate = { id -> navController.navigate(Routes.rateReview(id)) },
                 )
             }
             composable(Routes.SEARCH) {

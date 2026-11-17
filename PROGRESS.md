@@ -88,6 +88,13 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   providers edit bio + experience in Profile, "Find another provider" after reject/expiry,
   version on Profile. 16 logic tests, lint 0 errors, release build OK (6.2 MB).
   Signed APK steps in docs/TEST_SCRIPT.md (user creates the key).
+- Polish round: fixed dark status-bar icons in dark mode, keyboard covering fields (imePadding),
+  half-made accounts on failed registration (deleted so user can retry), "Overdue" accepted
+  jobs, expired counted separately for admin. Added colourful category tiles with "from ₹",
+  next-booking card + rate reminder on Customer Home, coloured avatars, Verified/Top rated
+  badges, friendlier empty screens, booking timeline with times, share booking/receipt,
+  provider sorting, search by category, new-review notification, admin top providers.
+  26 logic tests, lint 0 errors, release build OK. Test script now 58 cases.
 
 ## Next step
 

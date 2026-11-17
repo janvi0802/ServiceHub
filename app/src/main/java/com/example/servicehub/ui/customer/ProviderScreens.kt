@@ -40,6 +40,7 @@ import com.example.servicehub.data.repository.ServiceRepository
 import com.example.servicehub.ui.components.Avatar
 import com.example.servicehub.ui.components.EmptyBox
 import com.example.servicehub.ui.components.LoadingBox
+import com.example.servicehub.ui.components.ProviderBadges
 import com.example.servicehub.ui.components.ScreenHeader
 import com.example.servicehub.ui.components.ratingText
 import com.example.servicehub.ui.components.rupees
@@ -53,6 +54,19 @@ import kotlinx.coroutines.launch
 
 private const val ALL_AREAS = "All areas"
 
+/** How the customer wants providers ordered. */
+enum class ProviderSort(val label: String) { RATING("★ Rating"), EXPERIENCE("Experience"), JOBS("Jobs done") }
+
+/** Best first for the chosen sort; ties are broken by rating, then by name. */
+fun sortProviders(list: List<Provider>, sort: ProviderSort): List<Provider> {
+    val primary: Comparator<Provider> = when (sort) {
+        ProviderSort.RATING -> compareByDescending<Provider> { it.ratingAvg }.thenByDescending { it.ratingCount }
+        ProviderSort.EXPERIENCE -> compareByDescending { it.experienceYears }
+        ProviderSort.JOBS -> compareByDescending { it.jobsCompleted }
+    }
+    return list.sortedWith(primary.thenByDescending { it.ratingAvg }.thenBy { it.name })
+}
+
 // ===================================================================== Provider list
 
 /**
@@ -63,12 +77,14 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     val serviceId: String = savedStateHandle["serviceId"] ?: ""
 
     val selectedArea = MutableStateFlow(ALL_AREAS)
+    val selectedSort = MutableStateFlow(ProviderSort.RATING)
     val service = MutableStateFlow<Service?>(null)
 
-    /** Bookable providers of this category, filtered by the chosen area. null = loading. */
+    /** Bookable providers of this category, filtered by area and sorted. null = loading. */
     val providers: StateFlow<List<Provider>?> =
-        combine(ProviderRepository.bookableProviders(categoryId), selectedArea) { list, area ->
-            if (area == ALL_AREAS) list else list.filter { it.area == area }
+        combine(ProviderRepository.bookableProviders(categoryId), selectedArea, selectedSort) { list, area, sort ->
+            val inArea = if (area == ALL_AREAS) list else list.filter { it.area == area }
+            sortProviders(inArea, sort)
         }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -86,6 +102,7 @@ fun ProviderListScreen(
 ) {
     val providers by viewModel.providers.collectAsState()
     val area by viewModel.selectedArea.collectAsState()
+    val sort by viewModel.selectedSort.collectAsState()
     val service by viewModel.service.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
@@ -109,6 +126,21 @@ fun ProviderListScreen(
                     selected = option == area,
                     onClick = { viewModel.selectedArea.value = option },
                     label = { Text(option) },
+                )
+            }
+        }
+        // Sort chips (scroll sideways on small phones)
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Sort:", style = MaterialTheme.typography.labelLarge)
+            ProviderSort.entries.forEach { option ->
+                FilterChip(
+                    selected = option == sort,
+                    onClick = { viewModel.selectedSort.value = option },
+                    label = { Text(option.label) },
                 )
             }
         }
@@ -140,8 +172,9 @@ private fun ProviderCard(provider: Provider, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Avatar(provider.name, 52.dp)
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(provider.name, style = MaterialTheme.typography.titleMedium)
+                ProviderBadges(provider)
                 Text("${provider.experienceYears} yrs experience • ${provider.area}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     "${ratingText(provider.ratingAvg, provider.ratingCount)}  •  ${provider.jobsCompleted} jobs done",
@@ -240,6 +273,7 @@ private fun ProviderHeader(p: Provider) {
         Avatar(p.name, 72.dp)
         Column {
             Text(p.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            ProviderBadges(p)
             Text(FixedData.categoryById(p.categoryId)?.name.orEmpty() + " • " + p.area)
             Text("${p.experienceYears} years experience", style = MaterialTheme.typography.bodySmall)
             Text(

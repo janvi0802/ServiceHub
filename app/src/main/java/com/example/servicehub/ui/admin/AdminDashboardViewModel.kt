@@ -25,9 +25,11 @@ data class DashboardStats(
     val approvedProviders: Int = 0,
     val pendingProviders: Int = 0,
     val blockedUsers: Int = 0,
-    val bookingsByStatus: Map<BookingStatus, Int> = emptyMap(),
+    val bookingsByStatus: Map<BookingStatus, Int> = emptyMap(),   // REQUESTED excludes expired ones
+    val expiredRequests: Int = 0,
     val totalBookings: Int = 0,
     val completedValue: Int = 0,
+    val topProviders: List<Provider> = emptyList(),
 ) {
     companion object {
         /** Counts everything from the three live lists. Pure function = easy to test. */
@@ -37,11 +39,20 @@ data class DashboardStats(
             pendingProviders = providers.count { it.approvalStatus == ApprovalStatus.PENDING },
             blockedUsers = users.count { it.isBlocked },
             bookingsByStatus = BookingStatus.entries.associateWith { status ->
-                bookings.count { it.bookingStatus == status }
+                bookings.count { it.bookingStatus == status && !it.isExpired }
             },
+            expiredRequests = bookings.count { it.isExpired },
             totalBookings = bookings.size,
             completedValue = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.totalAmount },
+            topProviders = topProviders(providers),
         )
+
+        /** Best 3 approved providers who have done some work: highest rating first, then most jobs. */
+        fun topProviders(providers: List<Provider>): List<Provider> =
+            providers
+                .filter { it.approvalStatus == ApprovalStatus.APPROVED && (it.ratingCount > 0 || it.jobsCompleted > 0) }
+                .sortedWith(compareByDescending<Provider> { it.ratingAvg }.thenByDescending { it.jobsCompleted })
+                .take(3)
     }
 }
 

@@ -237,6 +237,19 @@ Take these on a real phone (Power + Volume down):
 - Dark mode, Hindi/Gujarati languages, coupons and offers
 - Provider working hours and custom slots
 
+## 8b. What makes ServiceHub different (for the "unique features" section)
+
+- **Race-proof booking:** a slot is claimed in the same transaction as the booking, so two
+  customers can never get the same provider at the same time.
+- **Start PIN:** the job can only start when the provider is really at the customer's home.
+- **Live timeline with real times** (requested, accepted, started, completed) on both phones.
+- **Trust signals:** admin-verified providers, "Top rated" only with 4.5★ from 3+ reviews,
+  one review per completed booking.
+- **Fair handling of no-shows:** unanswered requests expire automatically, late jobs show as
+  "Overdue", and either side can cancel with a reason that the other side sees.
+- **Transparent prices:** fixed service price + ₹49 visit fee shown before booking, receipt
+  after, shareable on WhatsApp/SMS.
+
 ## 9. Likely viva questions (25) with short answers
 
 1. **What problem does ServiceHub solve?** It replaces word-of-mouth with one app where customers see fixed prices, book an admin-verified provider in their area and track the job live.
@@ -261,6 +274,6 @@ Take these on a real phone (Power + Volume down):
 20. **What happens when the admin blocks a user?** `isBlocked = true`: they are logged out immediately (the app listens to their own document), cannot log in again, blocked providers are hidden, and security rules refuse their writes.
 21. **What do your security rules do?** Users edit only their own profile (never role or blocked status), only admin approves, blocks and edits services, bookings are readable and changeable only by their own customer, provider or admin, reviews are once and cannot be edited, notifications are private, blocked users cannot write.
 22. **Why store customer and provider names inside the booking?** So a booking and receipt always show correct details without extra reads, even if someone changes their profile later (denormalization).
-23. **How did you test the app?** 16 automatic logic tests (JUnit), Android lint (0 errors), a release build check, and a 45-case manual test script on two real phones.
+23. **How did you test the app?** 26 automatic logic tests (JUnit), Android lint (0 errors), a release build check, and a 58-case manual test script on two real phones.
 24. **What are the limitations?** No online payment, no push notifications, no GPS, no photos; business rules are checked in the app and by security rules, but there is no server code (Cloud Functions need the paid plan).
 25. **What would you add next?** Push notifications, UPI payment, chat, maps, provider ID verification, and Cloud Functions for server-side checks.

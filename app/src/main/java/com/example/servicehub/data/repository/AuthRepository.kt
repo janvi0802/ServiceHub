@@ -88,7 +88,15 @@ object AuthRepository {
             )
             batch.set(db.collection("providers").document(uid), provider)
         }
-        batch.commit().await()
+        try {
+            batch.commit().await()
+        } catch (e: Exception) {
+            // The login account exists but its data could not be saved (e.g. internet dropped).
+            // Delete the half-made account, so the person can simply register again.
+            runCatching { result.user?.delete()?.await() }
+            auth.signOut()
+            throw Exception("Could not finish registration. Check your internet and try again.")
+        }
     }
 
     /**

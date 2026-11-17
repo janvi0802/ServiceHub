@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.ElectricalServices
 import androidx.compose.material.icons.filled.FormatPaint
 import androidx.compose.material.icons.filled.Plumbing
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /*
@@ -14,22 +15,23 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * Services DO live in Firestore, because the admin can edit their prices.
  */
 
-/** One service category, e.g. Plumber. `id` is what we save in Firestore. */
+/** One service category, e.g. Plumber. `id` is what we save in Firestore. [color] tints its tile and icon. */
 data class Category(
     val id: String,
     val name: String,
     val icon: ImageVector,
+    val color: Color,
 )
 
 object FixedData {
 
     val categories = listOf(
-        Category("plumber", "Plumber", Icons.Filled.Plumbing),
-        Category("electrician", "Electrician", Icons.Filled.ElectricalServices),
-        Category("cleaning", "Cleaning", Icons.Filled.CleaningServices),
-        Category("ac_repair", "AC Repair", Icons.Filled.AcUnit),
-        Category("carpenter", "Carpenter", Icons.Filled.Carpenter),
-        Category("painter", "Painter", Icons.Filled.FormatPaint),
+        Category("plumber", "Plumber", Icons.Filled.Plumbing, Color(0xFF1E88E5)),            // blue (water)
+        Category("electrician", "Electrician", Icons.Filled.ElectricalServices, Color(0xFFF9A825)), // yellow (power)
+        Category("cleaning", "Cleaning", Icons.Filled.CleaningServices, Color(0xFF00897B)),   // teal (fresh)
+        Category("ac_repair", "AC Repair", Icons.Filled.AcUnit, Color(0xFF039BE5)),          // light blue (cool)
+        Category("carpenter", "Carpenter", Icons.Filled.Carpenter, Color(0xFF8D6E63)),       // brown (wood)
+        Category("painter", "Painter", Icons.Filled.FormatPaint, Color(0xFFD81B60)),         // pink (paint)
     )
 
     /** Areas a customer or provider can choose. */

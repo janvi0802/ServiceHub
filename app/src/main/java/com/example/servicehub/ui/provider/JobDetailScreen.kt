@@ -47,6 +47,7 @@ import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ReasonDialog
 import com.example.servicehub.ui.components.ScreenHeader
 import com.example.servicehub.ui.components.StatusSteps
+import com.example.servicehub.ui.components.TimelineCard
 import com.example.servicehub.ui.components.TextInput
 import com.example.servicehub.ui.components.openDialer
 import com.example.servicehub.ui.components.rupees
@@ -88,6 +89,7 @@ fun JobDetailScreen(
         ) {
             StatusSteps(status)
             BookingInfoCard(booking, "Customer", booking.customerName)
+            TimelineCard(booking)
 
             if (status.isActive) {
                 OutlinedButton(onClick = { openDialer(context, booking.customerPhone) }, modifier = Modifier.fillMaxWidth()) {
@@ -119,6 +121,12 @@ fun JobDetailScreen(
                 }
 
                 status == BookingStatus.ACCEPTED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (booking.isOverdue) {
+                        Text(
+                            "Overdue: this job was for ${DateUtils.pretty(booking.date)}. Call the customer, then start or cancel it.",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Text("Start the job", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Ask the customer for their 4-digit PIN when you arrive.", style = MaterialTheme.typography.bodySmall)
                     TextInput(

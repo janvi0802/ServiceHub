@@ -61,6 +61,12 @@ class CatalogViewModel : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 }
 
+/** True if the service name OR its category name contains the search text ("tap", "plumber"). */
+fun matchesSearch(service: Service, text: String): Boolean {
+    val categoryName = FixedData.categoryById(service.categoryId)?.name.orEmpty()
+    return service.name.contains(text, ignoreCase = true) || categoryName.contains(text, ignoreCase = true)
+}
+
 /** Services of one category, with price and duration. */
 @Composable
 fun CategoryServicesScreen(
@@ -102,7 +108,7 @@ fun SearchScreen(
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            placeholder = { Text("e.g. tap, fan, AC") },
+            placeholder = { Text("e.g. tap, fan, plumber") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true,
             modifier = Modifier
@@ -111,7 +117,7 @@ fun SearchScreen(
                 .focusRequester(focusRequester),
         )
         val text = query.trim()
-        val results = all?.filter { text.isNotEmpty() && it.name.contains(text, ignoreCase = true) }
+        val results = all?.filter { text.isNotEmpty() && matchesSearch(it, text) }
         when {
             all == null -> LoadingBox()
             text.isEmpty() -> EmptyBox("Type a service name to search.")
