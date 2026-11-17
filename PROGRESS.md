@@ -18,8 +18,8 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 | 9 – Notifications | 🟡 Built, waiting for phone test |
 | 10 – Reviews & receipt | 🟡 Built, waiting for phone test |
 | 11 – Admin control | 🟡 Built, waiting for phone test |
-| 12 – Finish (rules, polish, test script) | ⏳ Next |
-| 13 – Report kit | Not started |
+| 12 – Finish (rules, polish, test script) | 🟡 Rules written (`firestore.rules`), icon done, test script in `docs/TEST_SCRIPT.md`. To do: publish rules in Console + final phone test |
+| 13 – Report kit | ✅ `README.md`, `docs/REPORT_KIT.md` (diagrams, future scope, 25 viva Q&A) |
 
 ## What works
 
@@ -80,4 +80,6 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 
 ## Next step
 
-Phone test of Phases 9–11, commit + push, then Phase 12 (security rules, polish, full test script).
+1. Publish `firestore.rules` in Firebase Console (Firestore → Rules → paste → Publish).
+2. Run `docs/TEST_SCRIPT.md` on two phones (35 cases). Fix anything that fails.
+3. Take screenshots from the checklist in `docs/REPORT_KIT.md`.

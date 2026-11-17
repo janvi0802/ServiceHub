@@ -1,0 +1,154 @@
+rules_version = '2';
+
+// ServiceHub – Firestore security rules.
+// These run on Google's servers, so they protect the data even if someone
+// changes the app. Paste this whole file into:
+// Firebase Console -> Firestore Database -> Rules -> Publish.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------ helpers
+
+    // Someone is logged in.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // The logged-in person's own users/{uid} document.
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // The logged-in person is the admin (role set by hand in the Console).
+    function isAdmin() {
+      return signedIn() && me().role == 'admin';
+    }
+
+    // Logged in AND not blocked by the admin. Used for every normal write.
+    function active() {
+      return signedIn() && me().isBlocked != true;
+    }
+
+    // An update changes ONLY these fields (anything else is refused).
+    function onlyChanges(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // ------------------------------------------------------------ users
+
+    match /users/{uid} {
+      // Any logged-in person may read user documents
+      // (needed to hide blocked providers and for the admin lists).
+      allow read: if signedIn();
+
+      // Register: you may create only YOUR OWN document, as customer or provider
+      // (never admin), and not already blocked. The admin also creates sample providers.
+      // (The own-document check comes first: a new user has no document yet,
+      //  so the admin check can't be the first thing we look at.)
+      allow create: if (
+        signedIn() && request.auth.uid == uid
+        && request.resource.data.role in ['customer', 'provider']
+        && request.resource.data.isBlocked == false
+      ) || isAdmin();
+
+      // Edit profile: only your own name, phone, area and address.
+      // You can never change your own role or blocked status. The admin can change anything.
+      allow update: if isAdmin() || (
+        active() && request.auth.uid == uid
+        && onlyChanges(['name', 'phone', 'area', 'address'])
+      );
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ providers
+
+    match /providers/{uid} {
+      allow read: if signedIn();
+
+      // Register as provider: your own document, always starting as PENDING with zero stats.
+      allow create: if (
+        signedIn() && request.auth.uid == uid
+        && request.resource.data.approvalStatus == 'PENDING'
+        && request.resource.data.ratingCount == 0
+        && request.resource.data.jobsCompleted == 0
+        && request.resource.data.totalEarnings == 0
+      ) || isAdmin();
+
+      allow update: if isAdmin()
+        // The provider: profile, availability switch, and the totals that change
+        // when they complete a job. NOT approvalStatus (only the admin approves).
+        || (active() && request.auth.uid == uid
+            && onlyChanges(['name', 'phone', 'area', 'isAvailable', 'jobsCompleted', 'totalEarnings']))
+        // A customer leaving a review may change only the rating fields.
+        || (active() && onlyChanges(['ratingAvg', 'ratingCount']));
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ services (catalog)
+
+    match /services/{serviceId} {
+      allow read: if signedIn();
+      // Only the admin adds services, edits prices, or hides/shows them.
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ bookings
+
+    match /bookings/{bookingId} {
+      // Prototype simplification: any logged-in person can read bookings, because the app
+      // checks a provider's busy slots before booking (that query looks at other customers'
+      // bookings). Future scope: a separate "busy slots" collection without personal details.
+      allow read: if signedIn();
+
+      // A customer creates a booking for themselves, always starting as REQUESTED.
+      allow create: if active()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'REQUESTED';
+
+      // Only the booking's own customer or its assigned provider (or the admin) can change it.
+      // The app's transactions make sure only the allowed status moves happen.
+      allow update: if isAdmin() || (
+        active()
+        && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid)
+        && request.resource.data.customerId == resource.data.customerId   // nobody can move a
+        && request.resource.data.providerId == resource.data.providerId   // booking to other people
+      );
+
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ reviews
+
+    match /reviews/{reviewId} {
+      allow read: if signedIn();
+
+      // Only the customer, once per booking (review id = booking id), 1 to 5 stars.
+      allow create: if active()
+        && request.resource.data.customerId == request.auth.uid
+        && reviewId == request.resource.data.bookingId
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+
+      // Reviews cannot be edited or deleted.
+      allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------ notifications
+
+    match /notifications/{notificationId} {
+      // You can read only your own notifications.
+      allow read: if signedIn() && resource.data.userId == request.auth.uid;
+
+      // Any active user can send one (e.g. a customer's booking notifies the provider).
+      allow create: if active();
+
+      // You can only mark your own notifications as read.
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+        && onlyChanges(['isRead']);
+
+      allow delete: if false;
+    }
+  }
+}
