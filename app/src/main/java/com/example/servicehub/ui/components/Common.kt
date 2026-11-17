@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 
 /** Title row at the top of a screen, with a back arrow when [onBack] is given. */
@@ -75,14 +76,23 @@ fun EmptyBox(message: String) {
 
 /** A small colored label showing a booking status. */
 @Composable
-fun StatusChip(status: BookingStatus) {
+fun StatusChip(status: BookingStatus) = StatusChip(status.label, status.color)
+
+/** Status label for a whole booking: shows "Expired" (grey) for old unanswered requests. */
+@Composable
+fun BookingStatusChip(booking: Booking) {
+    if (booking.isExpired) StatusChip("Expired", Color.Gray) else StatusChip(booking.bookingStatus)
+}
+
+@Composable
+fun StatusChip(label: String, color: Color) {
     Text(
-        text = status.label,
+        text = label,
         color = Color.White,
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
         modifier = Modifier
-            .background(status.color, RoundedCornerShape(50))
+            .background(color, RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     )
 }

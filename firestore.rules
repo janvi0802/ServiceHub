@@ -80,7 +80,8 @@ service cloud.firestore {
         // The provider: profile, availability switch, and the totals that change
         // when they complete a job. NOT approvalStatus (only the admin approves).
         || (active() && request.auth.uid == uid
-            && onlyChanges(['name', 'phone', 'area', 'isAvailable', 'jobsCompleted', 'totalEarnings']))
+            && onlyChanges(['name', 'phone', 'area', 'bio', 'experienceYears',
+                            'isAvailable', 'jobsCompleted', 'totalEarnings']))
         // A customer leaving a review may change only the rating fields.
         || (active() && onlyChanges(['ratingAvg', 'ratingCount']));
 

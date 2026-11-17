@@ -52,8 +52,9 @@ class ProviderJobsViewModel : ViewModel() {
     companion object {
         // Small pure functions that sort bookings into groups. "companion object" = no instance needed.
 
+        /** Requests still waiting for an answer (expired ones go to history). */
         fun newRequests(all: List<Booking>) =
-            all.filter { it.bookingStatus == BookingStatus.REQUESTED }.sortedBy { it.date + it.timeSlot }
+            all.filter { it.bookingStatus == BookingStatus.REQUESTED && !it.isExpired }.sortedBy { it.date + it.timeSlot }
 
         /** Accepted or in progress, earliest date first. */
         fun upcoming(all: List<Booking>) =
@@ -62,7 +63,7 @@ class ProviderJobsViewModel : ViewModel() {
 
         fun todaysJobs(all: List<Booking>) = upcoming(all).filter { it.date == DateUtils.today() }
 
-        fun history(all: List<Booking>) = all.filter { !it.bookingStatus.isActive }
+        fun history(all: List<Booking>) = all.filter { !it.isOpen }
 
         fun todaysEarnings(all: List<Booking>) = all
             .filter { it.bookingStatus == BookingStatus.COMPLETED && DateUtils.isToday(it.completedAt) }

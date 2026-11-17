@@ -9,6 +9,7 @@ import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.User
+import com.example.servicehub.data.model.isRequestExpired
 import com.example.servicehub.data.repository.newAverage
 import com.example.servicehub.data.repository.slotDocId
 import com.example.servicehub.ui.admin.DashboardStats
@@ -199,6 +200,27 @@ class LogicTest {
         assertFalse(a == slotDocId("prov1", "2026-11-20", afternoon))
         assertFalse(a == slotDocId("prov1", "2026-11-21", morning))
         assertFalse(a == slotDocId("prov2", "2026-11-20", morning))
+    }
+
+    // ------------------------------------------------ expired requests
+
+    @Test
+    fun expiry_onlyUnansweredRequestsAfterTheirTime() {
+        val (morning, _, evening) = FixedData.timeSlots
+        val today = "2026-11-20"
+        fun req(date: String, slot: String, status: String = "REQUESTED") =
+            Booking(status = status, date = date, timeSlot = slot)
+
+        // yesterday, still requested -> expired
+        assertTrue(isRequestExpired(req("2026-11-19", evening), today, 9))
+        // today morning at 1 PM -> expired; at 10 AM -> not yet
+        assertTrue(isRequestExpired(req(today, morning), today, 13))
+        assertFalse(isRequestExpired(req(today, morning), today, 10))
+        // future date -> never expired
+        assertFalse(isRequestExpired(req("2026-11-21", morning), today, 23))
+        // accepted / completed bookings never "expire"
+        assertFalse(isRequestExpired(req("2026-11-19", morning, "ACCEPTED"), today, 9))
+        assertFalse(isRequestExpired(req("2026-11-19", morning, "COMPLETED"), today, 9))
     }
 
     @Test

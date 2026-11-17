@@ -83,6 +83,11 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   Accept/Start, Book again, recent reviews on Provider Home. 15 logic tests, lint 0 errors.
   Note: test bookings made BEFORE this change have no slot document, so they don't block
   their slot. New bookings do.
+- Workflow fixes: expired requests (grey "Expired", can't be accepted, move to Past/History),
+  provider can cancel an ACCEPTED job (reason prefixed "Provider: ", customer notified),
+  providers edit bio + experience in Profile, "Find another provider" after reject/expiry,
+  version on Profile. 16 logic tests, lint 0 errors, release build OK (6.2 MB).
+  Signed APK steps in docs/TEST_SCRIPT.md (user creates the key).
 
 ## Next step
 

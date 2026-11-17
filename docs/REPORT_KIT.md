@@ -172,7 +172,7 @@ stateDiagram-v2
     REQUESTED --> REJECTED : provider rejects (reason)
     REQUESTED --> CANCELLED : customer cancels (reason)
     ACCEPTED --> IN_PROGRESS : provider enters correct PIN
-    ACCEPTED --> CANCELLED : customer cancels (reason)
+    ACCEPTED --> CANCELLED : customer or provider cancels (reason)
     ACCEPTED --> REQUESTED : customer reschedules
     REQUESTED --> REQUESTED : customer reschedules
     IN_PROGRESS --> COMPLETED : provider confirms payment received
@@ -183,6 +183,10 @@ stateDiagram-v2
 
 Every move happens inside a **Firestore transaction** (`BookingRepository.changeBooking`): it
 reads the current status and refuses any move that is not in the diagram.
+
+**Expired:** a booking still REQUESTED after its date/slot has passed is shown as "Expired"
+(grey), moves to Past/History and can no longer be accepted. The customer can reschedule,
+cancel, or find another provider.
 
 ## 6. Booking sequence (two phones)
 
@@ -257,6 +261,6 @@ Take these on a real phone (Power + Volume down):
 20. **What happens when the admin blocks a user?** `isBlocked = true`: they are logged out immediately (the app listens to their own document), cannot log in again, blocked providers are hidden, and security rules refuse their writes.
 21. **What do your security rules do?** Users edit only their own profile (never role or blocked status), only admin approves, blocks and edits services, bookings are readable and changeable only by their own customer, provider or admin, reviews are once and cannot be edited, notifications are private, blocked users cannot write.
 22. **Why store customer and provider names inside the booking?** So a booking and receipt always show correct details without extra reads, even if someone changes their profile later (denormalization).
-23. **How did you test the app?** 15 automatic logic tests (JUnit), Android lint (0 errors) and a 40-case manual test script on two real phones.
+23. **How did you test the app?** 16 automatic logic tests (JUnit), Android lint (0 errors), a release build check, and a 45-case manual test script on two real phones.
 24. **What are the limitations?** No online payment, no push notifications, no GPS, no photos; business rules are checked in the app and by security rules, but there is no server code (Cloud Functions need the paid plan).
 25. **What would you add next?** Push notifications, UPI payment, chat, maps, provider ID verification, and Cloud Functions for server-side checks.

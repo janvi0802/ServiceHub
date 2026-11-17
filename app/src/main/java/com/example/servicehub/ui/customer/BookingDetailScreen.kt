@@ -39,6 +39,7 @@ import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
+import com.example.servicehub.data.repository.PROVIDER_CANCEL_PREFIX
 import com.example.servicehub.ui.booking.BookingDetailViewModel
 import com.example.servicehub.ui.booking.BookingInfoCard
 import com.example.servicehub.ui.booking.BookingLoad
@@ -57,6 +58,7 @@ fun BookingDetailScreen(
     onRate: (String) -> Unit,
     onReceipt: (String) -> Unit,
     onBookAgain: (providerId: String, serviceId: String) -> Unit,
+    onFindAnotherProvider: (categoryId: String, serviceId: String) -> Unit,
     viewModel: BookingDetailViewModel = viewModel(),
 ) {
     val load by viewModel.booking.collectAsState()
@@ -82,7 +84,15 @@ fun BookingDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusSteps(status)
-            StatusHint(status)
+            if (booking.isExpired) {
+                Text(
+                    "This request expired: the provider did not accept it before its time. " +
+                        "You can reschedule, cancel, or find another provider.",
+                    color = MaterialTheme.colorScheme.error,
+                )
+            } else {
+                StatusHint(status, cancelledByProvider = booking.cancelReason.startsWith(PROVIDER_CANCEL_PREFIX))
+            }
 
             // The PIN is shown only after the provider accepts; the provider needs it to start.
             if (status == BookingStatus.ACCEPTED) PinCard(booking.startPin)
@@ -117,6 +127,14 @@ fun BookingDetailScreen(
                     }
                     OutlinedButton(onClick = { onReceipt(booking.id) }, modifier = Modifier.weight(1f)) { Text("View receipt") }
                 }
+            }
+
+            // Rejected or expired: same service, choose a different provider.
+            if (status == BookingStatus.REJECTED || booking.isExpired) {
+                Button(
+                    onClick = { onFindAnotherProvider(booking.categoryId, booking.serviceId) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Find another provider") }
             }
 
             // Same provider and service again in one tap (the form checks the provider is still available).
@@ -155,14 +173,16 @@ fun BookingDetailScreen(
 
 /** One line explaining what happens next. */
 @Composable
-private fun StatusHint(status: BookingStatus) {
+private fun StatusHint(status: BookingStatus, cancelledByProvider: Boolean) {
     val text = when (status) {
         BookingStatus.REQUESTED -> "Waiting for the provider to accept."
         BookingStatus.ACCEPTED -> "Confirmed! Share the PIN below when the provider arrives."
         BookingStatus.IN_PROGRESS -> "The provider is working on it."
         BookingStatus.COMPLETED -> "Job done. Thank you for using ServiceHub!"
         BookingStatus.REJECTED -> "The provider could not take this job. Please book another provider."
-        BookingStatus.CANCELLED -> "You cancelled this booking."
+        BookingStatus.CANCELLED ->
+            if (cancelledByProvider) "The provider cancelled this job. Sorry! You can book again or choose another provider."
+            else "You cancelled this booking."
     }
     Text(text, style = MaterialTheme.typography.bodyMedium)
 }

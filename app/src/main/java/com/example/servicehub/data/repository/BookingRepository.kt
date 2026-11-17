@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlin.random.Random
 
+/** Start of cancelReason when the PROVIDER cancelled, so both sides can see who cancelled. */
+const val PROVIDER_CANCEL_PREFIX = "Provider: "
+
 /** An error we create ourselves, with a message that is safe to show the user. */
 class BookingException(message: String) : Exception(message)
 
@@ -178,11 +181,14 @@ object BookingRepository {
         }.await()
     }
 
-    /** Provider: REQUESTED -> ACCEPTED */
+    /** Provider: REQUESTED -> ACCEPTED (not if the request has already expired) */
     suspend fun accept(bookingId: String) {
         val b = changeBooking(
             bookingId, setOf(BookingStatus.REQUESTED),
             mapOf("status" to BookingStatus.ACCEPTED.name, "acceptedAt" to System.currentTimeMillis()),
+            check = { booking ->
+                if (booking.isExpired) throw BookingException("This request has expired: its time has already passed.")
+            },
         )
         NotificationRepository.send(
             b.customerId, "Booking accepted",
@@ -225,6 +231,22 @@ object BookingRepository {
         NotificationRepository.send(
             b.providerId, "Booking cancelled",
             "${b.customerName} cancelled ${b.serviceName} on ${slotText(b)}. Reason: $reason", b.id,
+        )
+    }
+
+    /**
+     * Provider: ACCEPTED -> CANCELLED, e.g. they fell sick. Needs a reason, frees the slot
+     * and tells the customer. (Before accepting, the provider uses Reject instead.)
+     */
+    suspend fun cancelByProvider(bookingId: String, reason: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.ACCEPTED),
+            mapOf("status" to BookingStatus.CANCELLED.name, "cancelReason" to PROVIDER_CANCEL_PREFIX + reason),
+            releaseSlot = true,
+        )
+        NotificationRepository.send(
+            b.customerId, "Job cancelled by provider",
+            "${b.providerName} cancelled your ${b.serviceName} on ${slotText(b)}. Reason: $reason. Please book another provider.", b.id,
         )
     }
 

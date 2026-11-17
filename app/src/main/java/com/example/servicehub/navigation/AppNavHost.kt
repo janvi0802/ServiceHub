@@ -238,6 +238,9 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onBookAgain = { providerId, serviceId ->
                         navController.navigate(Routes.bookingForm(providerId, serviceId))
                     },
+                    onFindAnotherProvider = { categoryId, serviceId ->
+                        navController.navigate(Routes.providerList(categoryId, serviceId))
+                    },
                 )
             }
             composable(Routes.RATE_REVIEW) {

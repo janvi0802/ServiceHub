@@ -43,7 +43,7 @@ fun BookingCard(booking: Booking, otherPersonName: String, onClick: () -> Unit) 
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                StatusChip(booking.bookingStatus)
+                BookingStatusChip(booking)
             }
             Text(otherPersonName, style = MaterialTheme.typography.bodyMedium)
             Text(

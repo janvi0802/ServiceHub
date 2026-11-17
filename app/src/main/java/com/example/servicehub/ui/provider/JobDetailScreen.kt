@@ -70,6 +70,7 @@ fun JobDetailScreen(
     var showComplete by rememberSaveable { mutableStateOf(false) }
     var showAccept by rememberSaveable { mutableStateOf(false) }
     var showStart by rememberSaveable { mutableStateOf(false) }
+    var showCancel by rememberSaveable { mutableStateOf(false) }
     var pin by rememberSaveable { mutableStateOf("") }
 
     Column(Modifier.fillMaxSize()) {
@@ -95,8 +96,14 @@ fun JobDetailScreen(
                 }
             }
 
-            when (status) {
-                BookingStatus.REQUESTED -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            when {
+                // Nobody accepted it in time: nothing can be done any more.
+                booking.isExpired -> Text(
+                    "This request has expired: its time has already passed.",
+                    color = MaterialTheme.colorScheme.error,
+                )
+
+                status == BookingStatus.REQUESTED -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { viewModel.clearMessage(); showAccept = true },
                         enabled = !isBusy,
@@ -111,7 +118,7 @@ fun JobDetailScreen(
                     ) { Text("Reject", color = MaterialTheme.colorScheme.error) }
                 }
 
-                BookingStatus.ACCEPTED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                status == BookingStatus.ACCEPTED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Start the job", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Ask the customer for their 4-digit PIN when you arrive.", style = MaterialTheme.typography.bodySmall)
                     TextInput(
@@ -125,15 +132,20 @@ fun JobDetailScreen(
                         enabled = !isBusy && pin.length == 4,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                     ) { Text("Start job") }
+                    TextButton(
+                        onClick = { viewModel.clearMessage(); showCancel = true },
+                        enabled = !isBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Can't come? Cancel this job", color = MaterialTheme.colorScheme.error) }
                 }
 
-                BookingStatus.IN_PROGRESS -> Button(
+                status == BookingStatus.IN_PROGRESS -> Button(
                     onClick = { viewModel.clearMessage(); showComplete = true },
                     enabled = !isBusy,
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Complete job • collect ${rupees(booking.totalAmount)}") }
 
-                BookingStatus.COMPLETED -> OutlinedButton(
+                status == BookingStatus.COMPLETED -> OutlinedButton(
                     onClick = { onReceipt(booking.id) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("View receipt") }
@@ -166,6 +178,17 @@ fun JobDetailScreen(
                     viewModel.start(pin) { pin = "" }
                 },
                 onDismiss = { showStart = false },
+            )
+        }
+        if (showCancel) {
+            ReasonDialog(
+                title = "Cancel this accepted job?",
+                confirmText = "Cancel job",
+                onConfirm = { reason ->
+                    showCancel = false
+                    viewModel.cancelByProvider(reason)
+                },
+                onDismiss = { showCancel = false },
             )
         }
         if (showReject) {

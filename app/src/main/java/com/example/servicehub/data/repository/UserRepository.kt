@@ -37,8 +37,17 @@ object UserRepository {
      * Saves the editable profile fields.
      * Providers also have name/phone/area copied in providers/{uid},
      * so we update both documents together in one "batch" (all or nothing).
+     * Providers can also change their bio and years of experience.
      */
-    suspend fun updateProfile(user: User, name: String, phone: String, area: String, address: String) {
+    suspend fun updateProfile(
+        user: User,
+        name: String,
+        phone: String,
+        area: String,
+        address: String,
+        providerBio: String = "",
+        providerExperienceYears: Int = 0,
+    ) {
         val batch = db.batch()
         batch.update(
             users.document(user.id),
@@ -47,7 +56,10 @@ object UserRepository {
         if (user.role == Roles.PROVIDER) {
             batch.update(
                 providers.document(user.id),
-                mapOf("name" to name, "phone" to phone, "area" to area)
+                mapOf(
+                    "name" to name, "phone" to phone, "area" to area,
+                    "bio" to providerBio, "experienceYears" to providerExperienceYears,
+                )
             )
         }
         batch.commit().await()

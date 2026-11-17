@@ -20,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -64,6 +66,15 @@ fun ProfileScreen(
         DropdownField("Area", FixedData.areas, state.area, viewModel::onAreaChange)
         TextInput(state.address, viewModel::onAddressChange, "Address (used for bookings)", singleLine = false)
 
+        // Extra fields that customers see on the provider's profile
+        if (state.isProvider) {
+            TextInput(
+                state.experienceYears, viewModel::onExperienceChange,
+                "Years of experience", keyboardType = KeyboardType.Number,
+            )
+            TextInput(state.bio, viewModel::onBioChange, "Short bio (shown to customers)", singleLine = false)
+        }
+
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
 
         Button(
@@ -83,5 +94,12 @@ fun ProfileScreen(
             Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
             Text("  Log out")
         }
+
+        // App version, read from the installed app (versionName in app/build.gradle.kts)
+        val context = LocalContext.current
+        val version = remember {
+            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+        }
+        Text("ServiceHub version ${version ?: "1.0"}", style = MaterialTheme.typography.labelSmall)
     }
 }

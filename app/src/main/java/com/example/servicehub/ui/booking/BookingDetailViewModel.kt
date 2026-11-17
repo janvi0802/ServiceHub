@@ -79,6 +79,9 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun start(pin: String, onDone: () -> Unit) =
         run("PIN correct. Job started!", onDone) { BookingRepository.startJob(bookingId, pin) }
 
+    fun cancelByProvider(reason: String) =
+        run("Job cancelled. The customer has been told.") { BookingRepository.cancelByProvider(bookingId, reason) }
+
     fun complete(paymentMode: String, onDone: () -> Unit) =
         run("Job completed. Payment recorded.", onDone) { BookingRepository.complete(bookingId, paymentMode) }
 }

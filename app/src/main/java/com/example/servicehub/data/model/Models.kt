@@ -1,6 +1,9 @@
 package com.example.servicehub.data.model
 
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.data.FixedData
 import com.google.firebase.firestore.Exclude
+import java.util.Calendar
 import com.google.firebase.firestore.PropertyName
 
 /*
@@ -123,7 +126,29 @@ data class Booking(
     @get:Exclude
     val bookingStatus: BookingStatus
         get() = BookingStatus.fromName(status)
+
+    /** Still REQUESTED but its date/slot has already passed (the provider never answered). */
+    @get:Exclude
+    val isExpired: Boolean
+        get() = isRequestExpired(this, DateUtils.today(), Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
+
+    /** Active and not expired: shown under "Active" and blocks actions like Accept. */
+    @get:Exclude
+    val isOpen: Boolean
+        get() = bookingStatus.isActive && !isExpired
 }
+
+/**
+ * A request expires when nobody accepted it before its time:
+ * the date is in the past, or it is today and the slot is already over.
+ * (Dates are "yyyy-MM-dd" text, so comparing them as text works.)
+ * Pure function with the date and hour passed in, so it is easy to test.
+ */
+fun isRequestExpired(booking: Booking, today: String, hourNow: Int): Boolean =
+    booking.bookingStatus == BookingStatus.REQUESTED && (
+        booking.date < today ||
+            (booking.date == today && FixedData.isSlotOverToday(booking.timeSlot, hourNow))
+        )
 
 /** reviews/{id} : stars + comment a customer left after a completed job */
 data class Review(

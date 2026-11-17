@@ -56,6 +56,11 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC38 | Book again | Completed or cancelled booking → "Book again" | Booking form opens with the same provider and service | |
 | TC39 | Provider reviews | After TC20, open Provider Home | "Recent reviews" shows the customer's stars and comment | |
 | TC40 | Same-moment booking | Two customer phones book the same provider, date and slot and tap Confirm together | One succeeds, the other gets "already booked" | |
+| TC41 | Expired request | Book today's earliest open slot; don't accept it until the slot ends (or use an older test booking) | Grey "Expired" chip; it moves to Past / History; provider sees "expired" and no Accept button | |
+| TC42 | Find another provider | Open a rejected or expired booking → "Find another provider" | Provider list for the same service opens | |
+| TC43 | Provider cancels | Provider accepts → "Can't come? Cancel this job" + reason | Customer sees Cancelled, "The provider cancelled this job", and gets a notification; slot is free again | |
+| TC44 | Provider profile | Provider → Profile → change bio and experience → Save | Customer sees the new bio and years on the provider page | |
+| TC45 | Version | Profile → bottom | "ServiceHub version 1.0" | |
 
 ## Automatic tests (no phone needed)
 
@@ -63,6 +68,15 @@ Mark each row ✅ or ❌ and note what you saw.
 gradlew.bat testDebugUnitTest
 ```
 
-15 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
+16 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
 dates and slots, price total, sample data completeness, provider job lists and earnings,
-rating average, admin dashboard counts, busy-slot ids.
+rating average, admin dashboard counts, busy-slot ids, expired requests.
+
+## Make a signed release APK (to share or install without Android Studio)
+
+1. Android Studio → **Build → Generate Signed App Bundle or APK…** → choose **APK** → Next.
+2. **Key store path → Create new…**: save it OUTSIDE the project folder (e.g. `Documents\servicehub-key.jks`),
+   choose a password, alias `servicehub`, your name. **Keep this file and password safe; never upload them to GitHub.**
+3. Next → choose **release** → **Create**.
+4. When it finishes, click **locate**: the file is `app\release\app-release.apk` (about 6 MB).
+   Send it to any Android phone and install it ("allow from this source" if asked).

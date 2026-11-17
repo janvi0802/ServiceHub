@@ -62,7 +62,8 @@ fun MyBookingsScreen(
             LoadingBox()
             return@Column
         }
-        val shown = all.filter { if (selectedTab == 0) it.bookingStatus.isActive else !it.bookingStatus.isActive }
+        // Expired requests move to "Past" even though their status is still REQUESTED.
+        val shown = all.filter { if (selectedTab == 0) it.isOpen else !it.isOpen }
         if (shown.isEmpty()) {
             EmptyBox(if (selectedTab == 0) "No active bookings.\nBook a service from Home!" else "No past bookings yet.")
         } else {
