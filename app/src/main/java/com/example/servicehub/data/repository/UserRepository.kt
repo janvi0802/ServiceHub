@@ -1,6 +1,8 @@
 package com.example.servicehub.data.repository
 
 import com.example.servicehub.data.await
+import com.example.servicehub.data.liveObject
+import kotlinx.coroutines.flow.Flow
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.User
@@ -21,6 +23,9 @@ object UserRepository {
         val snapshot = users.document(uid).get().await()
         return snapshot.toObject(User::class.java)
     }
+
+    /** users/{uid}, live. Used to log a person out the moment the admin blocks them. */
+    fun liveUser(uid: String): Flow<User?> = users.document(uid).liveObject(User::class.java)
 
     /** Loads providers/{uid}. Returns null if the document does not exist. */
     suspend fun getProvider(uid: String): Provider? {

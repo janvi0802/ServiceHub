@@ -3,7 +3,10 @@ package com.example.servicehub.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -17,7 +20,18 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.repository.AuthRepository
+import com.example.servicehub.data.repository.NotificationRepository
+import com.example.servicehub.data.repository.UserRepository
+import com.example.servicehub.ui.admin.AdminAllProvidersScreen
+import com.example.servicehub.ui.admin.AdminBookingsScreen
 import com.example.servicehub.ui.admin.AdminDashboardScreen
+import com.example.servicehub.ui.admin.AdminServicesScreen
+import com.example.servicehub.ui.admin.AdminUsersScreen
+import com.example.servicehub.ui.common.NotificationsScreen
+import com.example.servicehub.ui.common.ReceiptScreen
+import com.example.servicehub.ui.customer.RateReviewScreen
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import com.example.servicehub.ui.admin.PendingProvidersScreen
 import com.example.servicehub.ui.auth.LoginScreen
 import com.example.servicehub.ui.auth.RegisterScreen
@@ -36,7 +50,6 @@ import com.example.servicehub.ui.provider.ProviderHomeScreen
 import com.example.servicehub.ui.provider.ProviderRequestsScreen
 import com.example.servicehub.ui.profile.ProfileScreen
 import com.example.servicehub.ui.provider.PendingApprovalScreen
-import com.example.servicehub.ui.screens.PlaceholderScreen
 import com.example.servicehub.ui.splash.SplashScreen
 
 /**
@@ -79,10 +92,29 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
     // Show the bar only on the main tab screens, not on detail screens.
     val showBottomBar = tabs.any { it.route == currentRoute }
 
+    // Live unread-notification count for the badge. Starts listening once someone is logged in.
+    val userId = if (role != null) AuthRepository.currentUserId else null
+    val unreadFlow = remember(userId) {
+        if (userId == null) flowOf(0) else NotificationRepository.unreadCount(userId).catch { emit(0) }
+    }
+    val unreadCount by unreadFlow.collectAsState(initial = 0)
+
+    // Watch the logged-in person's own account: if the admin blocks them, log out at once.
+    val meFlow = remember(userId) {
+        if (userId == null) flowOf(null) else UserRepository.liveUser(userId).catch { emit(null) }
+    }
+    val me by meFlow.collectAsState(initial = null)
+    LaunchedEffect(me?.isBlocked) {
+        if (me?.isBlocked == true) {
+            AuthRepository.logout()
+            onLoggedOut()   // fresh session -> Login screen; logging in again shows "blocked"
+        }
+    }
+
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                AppBottomBar(tabs, currentRoute) { route ->
+                AppBottomBar(tabs, currentRoute, unreadCount) { route ->
                     navController.openTab(route, homeRoute = tabs.first().route)
                 }
             }
@@ -124,7 +156,13 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.PROFILE) {
                 ProfileScreen(onLoggedOut = onLoggedOut)
             }
-            composable(Routes.NOTIFICATIONS) { PlaceholderScreen("Notifications") }
+            composable(Routes.NOTIFICATIONS) {
+                NotificationsScreen(onOpenBooking = { bookingId ->
+                    // Providers open the job screen, customers the booking screen.
+                    val route = if (role == Roles.PROVIDER) Routes.jobDetail(bookingId) else Routes.bookingDetail(bookingId)
+                    navController.navigate(route)
+                })
+            }
 
             // ---------- Customer ----------
             composable(Routes.CUSTOMER_HOME) {
@@ -199,8 +237,15 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onReceipt = { id -> navController.navigate(Routes.receipt(id)) },
                 )
             }
-            composable(Routes.RATE_REVIEW) { PlaceholderScreen("Rate & review") }
-            composable(Routes.RECEIPT) { PlaceholderScreen("Receipt") }
+            composable(Routes.RATE_REVIEW) {
+                RateReviewScreen(
+                    onBack = { navController.popBackStack() },
+                    onDone = { navController.popBackStack() },   // back to the booking, which now shows "rated"
+                )
+            }
+            composable(Routes.RECEIPT) {
+                ReceiptScreen(onBack = { navController.popBackStack() })
+            }
 
             // ---------- Provider ----------
             composable(Routes.PENDING_APPROVAL) {
@@ -222,7 +267,10 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 ProviderRequestsScreen(onJobClick = { id -> navController.navigate(Routes.jobDetail(id)) })
             }
             composable(Routes.JOB_DETAIL) {
-                JobDetailScreen(onBack = { navController.popBackStack() })
+                JobDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onReceipt = { id -> navController.navigate(Routes.receipt(id)) },
+                )
             }
             composable(Routes.JOB_HISTORY) {
                 JobHistoryScreen(onJobClick = { id -> navController.navigate(Routes.jobDetail(id)) })
@@ -233,14 +281,18 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 AdminDashboardScreen(
                     onOpenPendingProviders = { navController.openTab(Routes.ADMIN_PENDING_PROVIDERS, Routes.ADMIN_DASHBOARD) },
                     onOpenAllProviders = { navController.navigate(Routes.ADMIN_ALL_PROVIDERS) },
+                    onOpenUsers = { navController.openTab(Routes.ADMIN_USERS, Routes.ADMIN_DASHBOARD) },
+                    onOpenBookings = { navController.openTab(Routes.ADMIN_BOOKINGS, Routes.ADMIN_DASHBOARD) },
                     onLoggedOut = onLoggedOut,
                 )
             }
             composable(Routes.ADMIN_PENDING_PROVIDERS) { PendingProvidersScreen() }
-            composable(Routes.ADMIN_ALL_PROVIDERS) { PlaceholderScreen("All providers") }
-            composable(Routes.ADMIN_USERS) { PlaceholderScreen("All users") }
-            composable(Routes.ADMIN_SERVICES) { PlaceholderScreen("Manage services") }
-            composable(Routes.ADMIN_BOOKINGS) { PlaceholderScreen("All bookings") }
+            composable(Routes.ADMIN_ALL_PROVIDERS) {
+                AdminAllProvidersScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.ADMIN_USERS) { AdminUsersScreen() }
+            composable(Routes.ADMIN_SERVICES) { AdminServicesScreen() }
+            composable(Routes.ADMIN_BOOKINGS) { AdminBookingsScreen() }
         }
     }
 }

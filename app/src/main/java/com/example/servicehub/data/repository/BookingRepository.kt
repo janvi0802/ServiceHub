@@ -1,9 +1,11 @@
 package com.example.servicehub.data.repository
 
+import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.await
 import com.example.servicehub.data.liveList
 import com.example.servicehub.data.liveObject
+import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.PaymentStatus
@@ -76,6 +78,20 @@ object BookingRepository {
         note: String,
         paymentMode: String,
     ): String {
+        // Check again with the LATEST data: the provider or service may have changed
+        // while the customer was filling in the form.
+        val latestProvider = UserRepository.getProvider(provider.id)
+        if (latestProvider == null ||
+            latestProvider.approvalStatus != ApprovalStatus.APPROVED ||
+            !latestProvider.isAvailable ||
+            UserRepository.getUser(provider.id)?.isBlocked == true
+        ) {
+            throw BookingException("${provider.name} is not available for booking right now. Please choose another provider.")
+        }
+        val latestService = ServiceRepository.getService(service.id)
+        if (latestService == null || !latestService.isActive) {
+            throw BookingException("${service.name} is not offered right now.")
+        }
         if (isSlotTaken(provider.id, date, timeSlot)) {
             throw BookingException("${provider.name} is already booked for this slot. Please choose another date or slot.")
         }
@@ -84,11 +100,11 @@ object BookingRepository {
         val booking = Booking(
             id = ref.id,
             customerId = customer.id, customerName = customer.name, customerPhone = customer.phone,
-            providerId = provider.id, providerName = provider.name, providerPhone = provider.phone,
-            categoryId = service.categoryId, serviceId = service.id, serviceName = service.name,
-            servicePrice = service.price,
+            providerId = provider.id, providerName = latestProvider.name, providerPhone = latestProvider.phone,
+            categoryId = latestService.categoryId, serviceId = latestService.id, serviceName = latestService.name,
+            servicePrice = latestService.price,     // latest price, in case the admin just changed it
             visitFee = FixedData.VISIT_FEE,
-            totalAmount = service.price + FixedData.VISIT_FEE,
+            totalAmount = latestService.price + FixedData.VISIT_FEE,
             date = date, timeSlot = timeSlot, address = address, note = note,
             status = BookingStatus.REQUESTED.name,
             startPin = Random.nextInt(1000, 10000).toString(),   // 4 digits: 1000..9999
@@ -97,8 +113,15 @@ object BookingRepository {
             createdAt = now, updatedAt = now,
         )
         ref.set(booking).await()
+        NotificationRepository.send(
+            provider.id, "New booking request",
+            "${customer.name} requested ${latestService.name} on ${slotText(booking)}.", ref.id,
+        )
         return ref.id
     }
+
+    /** "Thu, 5 Nov, Morning (9 AM – 12 PM)" for notification messages. */
+    private fun slotText(booking: Booking) = "${DateUtils.pretty(booking.date)}, ${booking.timeSlot}"
 
     // ---------------------------------------------------------------- status changes
 
@@ -106,15 +129,16 @@ object BookingRepository {
      * The one place where a booking's status changes.
      * Reads the booking inside a transaction, checks the current status is one of [allowedFrom],
      * optionally runs an extra [check], then saves [changes] plus updatedAt.
+     * Returns the booking as it was BEFORE the change (used for notification texts).
      */
     private suspend fun changeBooking(
         bookingId: String,
         allowedFrom: Set<BookingStatus>,
         changes: Map<String, Any>,
         check: (Booking) -> Unit = {},
-    ) {
+    ): Booking {
         val ref = bookings.document(bookingId)
-        db.runTransaction<Unit> { transaction ->
+        return db.runTransaction<Booking> { transaction ->
             val booking = transaction.get(ref).toObject(Booking::class.java)
                 ?: throw BookingException("Booking not found.")
             if (booking.bookingStatus !in allowedFrom) {
@@ -122,36 +146,57 @@ object BookingRepository {
             }
             check(booking)
             transaction.update(ref, changes + ("updatedAt" to System.currentTimeMillis()))
-            Unit   // the transaction returns nothing
+            booking
         }.await()
     }
 
     /** Provider: REQUESTED -> ACCEPTED */
-    suspend fun accept(bookingId: String) = changeBooking(
-        bookingId, setOf(BookingStatus.REQUESTED),
-        mapOf("status" to BookingStatus.ACCEPTED.name, "acceptedAt" to System.currentTimeMillis()),
-    )
+    suspend fun accept(bookingId: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.REQUESTED),
+            mapOf("status" to BookingStatus.ACCEPTED.name, "acceptedAt" to System.currentTimeMillis()),
+        )
+        NotificationRepository.send(
+            b.customerId, "Booking accepted",
+            "${b.providerName} accepted your ${b.serviceName} on ${slotText(b)}. Your start PIN is in the booking.", b.id,
+        )
+    }
 
     /** Provider: REQUESTED -> REJECTED (with a reason) */
-    suspend fun reject(bookingId: String, reason: String) = changeBooking(
-        bookingId, setOf(BookingStatus.REQUESTED),
-        mapOf("status" to BookingStatus.REJECTED.name, "rejectReason" to reason),
-    )
+    suspend fun reject(bookingId: String, reason: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.REQUESTED),
+            mapOf("status" to BookingStatus.REJECTED.name, "rejectReason" to reason),
+        )
+        NotificationRepository.send(
+            b.customerId, "Booking rejected",
+            "${b.providerName} could not take your ${b.serviceName}. Reason: $reason", b.id,
+        )
+    }
 
     /** Provider: ACCEPTED -> IN_PROGRESS, only with the correct 4-digit PIN from the customer. */
-    suspend fun startJob(bookingId: String, enteredPin: String) = changeBooking(
-        bookingId, setOf(BookingStatus.ACCEPTED),
-        mapOf("status" to BookingStatus.IN_PROGRESS.name, "startedAt" to System.currentTimeMillis()),
-        check = { booking ->
-            if (booking.startPin != enteredPin.trim()) throw BookingException("Wrong PIN. Ask the customer for the 4-digit PIN.")
-        },
-    )
+    suspend fun startJob(bookingId: String, enteredPin: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.ACCEPTED),
+            mapOf("status" to BookingStatus.IN_PROGRESS.name, "startedAt" to System.currentTimeMillis()),
+            check = { booking ->
+                if (booking.startPin != enteredPin.trim()) throw BookingException("Wrong PIN. Ask the customer for the 4-digit PIN.")
+            },
+        )
+        NotificationRepository.send(b.customerId, "Job started", "${b.providerName} has started your ${b.serviceName}.", b.id)
+    }
 
     /** Customer: REQUESTED or ACCEPTED -> CANCELLED (with a reason) */
-    suspend fun cancel(bookingId: String, reason: String) = changeBooking(
-        bookingId, setOf(BookingStatus.REQUESTED, BookingStatus.ACCEPTED),
-        mapOf("status" to BookingStatus.CANCELLED.name, "cancelReason" to reason),
-    )
+    suspend fun cancel(bookingId: String, reason: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.REQUESTED, BookingStatus.ACCEPTED),
+            mapOf("status" to BookingStatus.CANCELLED.name, "cancelReason" to reason),
+        )
+        NotificationRepository.send(
+            b.providerId, "Booking cancelled",
+            "${b.customerName} cancelled ${b.serviceName} on ${slotText(b)}. Reason: $reason", b.id,
+        )
+    }
 
     /**
      * Customer: change date/slot while REQUESTED or ACCEPTED.
@@ -171,6 +216,11 @@ object BookingRepository {
                 "status" to BookingStatus.REQUESTED.name, "acceptedAt" to 0L,
             ),
         )
+        val moved = booking.copy(date = newDate, timeSlot = newSlot)
+        NotificationRepository.send(
+            booking.providerId, "Booking rescheduled",
+            "${booking.customerName} moved ${booking.serviceName} to ${slotText(moved)}. Please accept again.", booking.id,
+        )
     }
 
     /**
@@ -180,7 +230,7 @@ object BookingRepository {
      */
     suspend fun complete(bookingId: String, paymentMode: String) {
         val bookingRef = bookings.document(bookingId)
-        db.runTransaction<Unit> { transaction ->
+        val b = db.runTransaction<Booking> { transaction ->
             // In a transaction, all reads must happen before any write.
             val booking = transaction.get(bookingRef).toObject(Booking::class.java)
                 ?: throw BookingException("Booking not found.")
@@ -207,8 +257,12 @@ object BookingRepository {
                     "totalEarnings" to FieldValue.increment(booking.totalAmount.toLong()),
                 ),
             )
-            Unit   // the transaction returns nothing
+            booking
         }.await()
+        NotificationRepository.send(
+            b.customerId, "Job completed",
+            "${b.serviceName} is done. Paid ₹${b.totalAmount} by $paymentMode. Please rate ${b.providerName}!", b.id,
+        )
     }
 
     /** A message that is safe to show, looking inside wrapped errors too. */

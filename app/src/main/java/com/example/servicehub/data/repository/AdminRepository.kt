@@ -2,7 +2,9 @@ package com.example.servicehub.data.repository
 
 import com.example.servicehub.data.SampleData
 import com.example.servicehub.data.await
+import com.example.servicehub.data.liveList
 import com.example.servicehub.data.model.ApprovalStatus
+import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.User
@@ -10,6 +12,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.map
 
 /** Admin-only actions: loading sample data and approving providers. */
 object AdminRepository {
@@ -39,6 +42,42 @@ object AdminRepository {
 
     suspend fun setApproval(providerId: String, status: String) {
         providers.document(providerId).update("approvalStatus", status).await()
+        if (status == ApprovalStatus.APPROVED) {
+            NotificationRepository.send(providerId, "Account approved", "Welcome to ServiceHub! Customers can now find and book you.")
+        } else if (status == ApprovalStatus.REJECTED) {
+            NotificationRepository.send(providerId, "Account not approved", "Sorry, the admin did not approve your provider account.")
+        }
+    }
+
+    // ---------------------------------------------------------------- Phase 11: admin control
+
+    /** Every user, live (customers, providers, admins). */
+    fun allUsers(): Flow<List<User>> =
+        db.collection("users").liveList(User::class.java)
+
+    /** Every provider, live, any approval status. */
+    fun allProviders(): Flow<List<Provider>> =
+        providers.liveList(Provider::class.java)
+
+    /** Every booking, live, newest first. */
+    fun allBookings(): Flow<List<Booking>> =
+        db.collection("bookings").liveList(Booking::class.java)
+            .map { list -> list.sortedByDescending { it.createdAt } }
+
+    /** Block or unblock a user. Blocked users cannot log in and blocked providers are hidden. */
+    suspend fun setBlocked(userId: String, blocked: Boolean) {
+        db.collection("users").document(userId).update("isBlocked", blocked).await()
+    }
+
+    /** Admin edits a service's price and description. */
+    suspend fun updateService(serviceId: String, price: Int, description: String) {
+        db.collection("services").document(serviceId)
+            .update(mapOf("price" to price, "description" to description)).await()
+    }
+
+    /** Hide (false) or show (true) a service for customers. */
+    suspend fun setServiceActive(serviceId: String, active: Boolean) {
+        db.collection("services").document(serviceId).update("isActive", active).await()
     }
 
     /** True if services were already loaded (so we can hide/disable the button). */

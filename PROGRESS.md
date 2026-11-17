@@ -15,8 +15,11 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 | 6 – Booking | ✅ Done (tested: request → accept → PIN → complete) |
 | 7 – Customer tracking | ✅ Done (cancel/reschedule/reject still to re-check in Phase 12 test) |
 | 8 – Provider jobs | ✅ Done |
-| 9 – Notifications | ⏳ Next |
-| 10–13 | Not started |
+| 9 – Notifications | 🟡 Built, waiting for phone test |
+| 10 – Reviews & receipt | 🟡 Built, waiting for phone test |
+| 11 – Admin control | 🟡 Built, waiting for phone test |
+| 12 – Finish (rules, polish, test script) | ⏳ Next |
+| 13 – Report kit | Not started |
 
 ## What works
 
@@ -46,13 +49,28 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   - All status changes go through Firestore transactions in BookingRepository (only the
     allowed moves work). Completing a job updates provider jobsCompleted + totalEarnings
     in the same transaction.
-  - Rate & Receipt buttons exist but open placeholders until Phase 10.
+- Phases 9–11 (built together):
+  - Notifications: NotificationRepository; created on new request, accepted, rejected,
+    started, completed, cancelled, rescheduled, provider approved/rejected. Alerts tab
+    (customer + provider) with unread badge; tap opens the booking and marks read; mark all read.
+  - Rate & review: 1–5 stars + comment, one per booking (review id = booking id). One
+    transaction writes review + provider ratingAvg/ratingCount + booking.isRated.
+  - Receipt screen for completed bookings (customer and provider).
+  - Admin: dashboard counts (customers, providers, pending, blocked, bookings by status,
+    completed value), Users (filter, block/unblock with confirm), All providers (filter,
+    approve/reject), Manage services (edit price/description, hide/show), All bookings
+    (status filter).
+  - No placeholder screens left.
 
 ## Known issues / notes
 
 - Fixed: after logout + login as another person, tabs showed the old person's data.
   Now every logout starts a fresh navigation session (AppNavHost key(session)).
-- Automatic logic tests: app/src/test/.../LogicTest.kt (12 tests, run `gradlew.bat testDebugUnitTest`).
+- Automatic logic tests: app/src/test/.../LogicTest.kt (14 tests, run `gradlew.bat testDebugUnitTest`).
+- Self-check (17 Nov): lint 0 errors (warnings harmless: Firebase StaticFieldLeak is the
+  normal singleton pattern, unused template colors, newer library versions not applied on
+  purpose). Fixed: booking now re-checks provider approved/available/not blocked and
+  service active at save time (uses latest price); blocked users are logged out live.
 
 - Internet is slow: the first build took over an hour of downloads. Later builds take minutes.
 - Don't accept Android Studio's "upgrade Gradle/AGP" prompts (they trigger big downloads).
@@ -62,4 +80,4 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 
 ## Next step
 
-Two-phone test of Phases 4–8, commit, then Phase 9 (notifications) and Phase 10 (reviews, receipt).
+Phone test of Phases 9–11, commit + push, then Phase 12 (security rules, polish, full test script).

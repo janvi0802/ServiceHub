@@ -56,6 +56,7 @@ import com.example.servicehub.ui.components.rupees
 @Composable
 fun JobDetailScreen(
     onBack: () -> Unit,
+    onReceipt: (String) -> Unit,
     viewModel: BookingDetailViewModel = viewModel(),
 ) {
     val load by viewModel.booking.collectAsState()
@@ -124,7 +125,12 @@ fun JobDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Complete job • collect ${rupees(booking.totalAmount)}") }
 
-                else -> Unit   // finished jobs have no actions
+                BookingStatus.COMPLETED -> OutlinedButton(
+                    onClick = { onReceipt(booking.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("View receipt") }
+
+                else -> Unit   // rejected / cancelled jobs have no actions
             }
 
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }

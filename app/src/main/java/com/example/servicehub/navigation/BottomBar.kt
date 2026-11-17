@@ -11,6 +11,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -34,6 +36,7 @@ object BottomTabs {
         BottomTab(Routes.PROVIDER_HOME, "Home", Icons.Filled.Home),
         BottomTab(Routes.PROVIDER_REQUESTS, "Requests", Icons.Filled.Inbox),
         BottomTab(Routes.JOB_HISTORY, "History", Icons.Filled.History),
+        BottomTab(Routes.NOTIFICATIONS, "Alerts", Icons.Filled.Notifications),
         BottomTab(Routes.PROFILE, "Profile", Icons.Filled.Person),
     )
 
@@ -50,12 +53,14 @@ object BottomTabs {
  * Draws a bottom bar.
  * @param tabs which tabs to show (customer, provider or admin)
  * @param currentRoute the screen open right now, so its tab is highlighted
+ * @param unreadCount number shown as a red badge on the Alerts tab (hidden when 0)
  * @param onTabClick called with the route of the tapped tab
  */
 @Composable
 fun AppBottomBar(
     tabs: List<BottomTab>,
     currentRoute: String?,
+    unreadCount: Int,
     onTabClick: (String) -> Unit,
 ) {
     NavigationBar {
@@ -63,7 +68,15 @@ fun AppBottomBar(
             NavigationBarItem(
                 selected = currentRoute == tab.route,
                 onClick = { onTabClick(tab.route) },
-                icon = { Icon(tab.icon, contentDescription = tab.label) },
+                icon = {
+                    if (tab.route == Routes.NOTIFICATIONS && unreadCount > 0) {
+                        BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else "$unreadCount") } }) {
+                            Icon(tab.icon, contentDescription = "${tab.label}, $unreadCount unread")
+                        }
+                    } else {
+                        Icon(tab.icon, contentDescription = tab.label)
+                    }
+                },
                 label = { Text(tab.label) },
             )
         }

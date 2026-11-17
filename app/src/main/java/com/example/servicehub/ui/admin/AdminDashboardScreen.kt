@@ -1,5 +1,6 @@
 package com.example.servicehub.ui.admin
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,7 +16,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -25,27 +25,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.servicehub.data.model.BookingStatus
+import com.example.servicehub.ui.components.LoadingBox
+import com.example.servicehub.ui.components.StatusChip
+import com.example.servicehub.ui.components.rupees
 
-/**
- * Admin home. Phase 3: pending approvals + "Load sample data".
- * Phase 11 adds the full counts (customers, bookings, earnings...).
- */
+/** Admin home: live counts, shortcuts, sample data and logout. */
 @Composable
 fun AdminDashboardScreen(
     onOpenPendingProviders: () -> Unit,
     onOpenAllProviders: () -> Unit,
+    onOpenUsers: () -> Unit,
+    onOpenBookings: () -> Unit,
     onLoggedOut: () -> Unit,
     viewModel: AdminDashboardViewModel = viewModel(),
 ) {
-    val pendingCount by viewModel.pendingCount.collectAsState()
+    val stats by viewModel.stats.collectAsState()
     val sample by viewModel.sampleState.collectAsState()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Title row with a logout button (admin has no Profile tab)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -63,19 +66,38 @@ fun AdminDashboardScreen(
             }
         }
 
-        // Pending approvals card
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Pending provider approvals", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "$pendingCount",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpenPendingProviders) { Text("Review") }
-                    OutlinedButton(onClick = onOpenAllProviders) { Text("All providers") }
+        val s = stats
+        if (s == null) {
+            LoadingBox()
+        } else {
+            // Tappable count cards, two per row
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CountCard("Customers", s.customers.toString(), Modifier.weight(1f), onOpenUsers)
+                CountCard("Providers", s.approvedProviders.toString(), Modifier.weight(1f), onOpenAllProviders)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CountCard("Pending approvals", s.pendingProviders.toString(), Modifier.weight(1f), onOpenPendingProviders)
+                CountCard("Blocked users", s.blockedUsers.toString(), Modifier.weight(1f), onOpenUsers)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                CountCard("Total bookings", s.totalBookings.toString(), Modifier.weight(1f), onOpenBookings)
+                CountCard("Completed value", rupees(s.completedValue), Modifier.weight(1f), onOpenBookings)
+            }
+
+            // Bookings by status
+            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenBookings)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Bookings by status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    BookingStatus.entries.forEach { status ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            StatusChip(status)
+                            Text(
+                                (s.bookingsByStatus[status] ?: 0).toString(),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -94,6 +116,21 @@ fun AdminDashboardScreen(
                 }
                 sample.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
             }
+        }
+    }
+}
+
+@Composable
+private fun CountCard(label: String, value: String, modifier: Modifier, onClick: () -> Unit) {
+    Card(modifier.clickable(onClick = onClick)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

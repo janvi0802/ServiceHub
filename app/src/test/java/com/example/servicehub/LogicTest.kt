@@ -3,8 +3,14 @@ package com.example.servicehub
 import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.SampleData
+import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
+import com.example.servicehub.data.model.Provider
+import com.example.servicehub.data.model.Roles
+import com.example.servicehub.data.model.User
+import com.example.servicehub.data.repository.newAverage
+import com.example.servicehub.ui.admin.DashboardStats
 import com.example.servicehub.ui.components.initialsOf
 import com.example.servicehub.ui.components.ratingText
 import com.example.servicehub.ui.components.rupees
@@ -140,6 +146,43 @@ class LogicTest {
     @Test
     fun providerEarnings_todayCountsOnlyJobsCompletedToday() {
         assertEquals(198, ProviderJobsViewModel.todaysEarnings(jobs))
+    }
+
+    // ------------------------------------------------ Phase 10: rating average
+
+    @Test
+    fun rating_newAverageIsCorrect() {
+        assertEquals(5.0, newAverage(0.0, 0, 5), 0.0001)     // first rating
+        assertEquals(4.25, newAverage(4.0, 3, 5), 0.0001)    // (4*3+5)/4
+        assertEquals(3.0, newAverage(5.0, 1, 1), 0.0001)     // (5+1)/2
+    }
+
+    // ------------------------------------------------ Phase 11: admin dashboard counts
+
+    @Test
+    fun dashboard_countsEverything() {
+        val users = listOf(
+            User(id = "c1", role = Roles.CUSTOMER),
+            User(id = "c2", role = Roles.CUSTOMER, isBlocked = true),
+            User(id = "p1", role = Roles.PROVIDER),
+            User(id = "a1", role = Roles.ADMIN),
+        )
+        val providers = listOf(
+            Provider(id = "p1", approvalStatus = ApprovalStatus.APPROVED),
+            Provider(id = "p2", approvalStatus = ApprovalStatus.PENDING),
+            Provider(id = "p3", approvalStatus = ApprovalStatus.REJECTED),
+        )
+        val stats = DashboardStats.from(users, providers, jobs)
+        assertEquals(2, stats.customers)
+        assertEquals(1, stats.approvedProviders)
+        assertEquals(1, stats.pendingProviders)
+        assertEquals(1, stats.blockedUsers)
+        assertEquals(8, stats.totalBookings)
+        assertEquals(2, stats.bookingsByStatus[BookingStatus.COMPLETED])
+        assertEquals(2, stats.bookingsByStatus[BookingStatus.ACCEPTED])
+        assertEquals(698, stats.completedValue)   // 198 + 500
+        // every status has a number, even if 0
+        assertEquals(BookingStatus.entries.size, stats.bookingsByStatus.size)
     }
 
     @Test
