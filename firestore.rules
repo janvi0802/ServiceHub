@@ -98,10 +98,13 @@ service cloud.firestore {
     // ------------------------------------------------------------ bookings
 
     match /bookings/{bookingId} {
-      // Prototype simplification: any logged-in person can read bookings, because the app
-      // checks a provider's busy slots before booking (that query looks at other customers'
-      // bookings). Future scope: a separate "busy slots" collection without personal details.
-      allow read: if signedIn();
+      // Private: only the booking's own customer, its provider, or the admin can read it
+      // (it contains an address and phone numbers).
+      allow read: if signedIn() && (
+        resource.data.customerId == request.auth.uid
+        || resource.data.providerId == request.auth.uid
+        || isAdmin()
+      );
 
       // A customer creates a booking for themselves, always starting as REQUESTED.
       allow create: if active()
@@ -118,6 +121,27 @@ service cloud.firestore {
       );
 
       allow delete: if false;
+    }
+
+    // ------------------------------------------------------------ slots (busy markers)
+
+    // One document per provider + date + slot that is booked. No personal details inside.
+    // The app creates it in the same transaction as the booking, so two customers can never
+    // hold the same slot.
+    match /slots/{slotId} {
+      // Anyone logged in may check if a slot is busy.
+      allow read: if signedIn();
+
+      // A customer claims a slot for their own booking. It can never be edited afterwards.
+      allow create: if active() && request.resource.data.customerId == request.auth.uid;
+      allow update: if false;
+
+      // Freed by the booking's customer (cancel/reschedule) or provider (reject/complete).
+      // "resource == null" allows deleting a slot that was never created (older bookings).
+      allow delete: if resource == null || isAdmin() || (
+        active() && (resource.data.customerId == request.auth.uid
+                     || resource.data.providerId == request.auth.uid)
+      );
     }
 
     // ------------------------------------------------------------ reviews

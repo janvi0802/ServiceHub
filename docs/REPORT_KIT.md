@@ -43,6 +43,7 @@ erDiagram
     PROVIDERS ||--o{ BOOKINGS : "providerId"
     SERVICES ||--o{ BOOKINGS : "serviceId"
     BOOKINGS ||--o| REVIEWS : "review id = booking id"
+    BOOKINGS ||--o| SLOTS : "active booking holds one slot"
     PROVIDERS ||--o{ REVIEWS : "providerId"
     USERS ||--o{ NOTIFICATIONS : "userId"
 
@@ -110,7 +111,21 @@ erDiagram
         string bookingId
         bool isRead
     }
+    SLOTS {
+        string id PK "providerId_date_slotNumber"
+        string providerId FK
+        string customerId FK
+        string bookingId FK
+        string date
+        string timeSlot
+    }
 ```
+
+**Slots:** each active booking owns one `slots` document whose id is
+`providerId_date_slotNumber`. Only one document can have that id, so only one booking can hold
+a provider's slot. It is created in the same transaction as the booking and deleted when the
+booking is rejected, cancelled or completed (or moved when rescheduled). It contains no address
+or phone numbers, so bookings themselves stay private.
 
 Categories, areas and time slots are fixed lists in Kotlin code (`FixedData.kt`).
 Names and phones are copied into each booking, so a booking still shows correct details even if
@@ -213,7 +228,7 @@ Take these on a real phone (Power + Volume down):
 - In-app chat between customer and provider
 - Photos of the problem and provider ID verification documents
 - Maps and GPS: show distance, live provider location
-- A separate "busy slots" collection so bookings with personal details are readable only by their own customer and provider
+- Email verification at registration and phone OTP login
 - Server-side checks with Cloud Functions (needs the paid Blaze plan)
 - Dark mode, Hindi/Gujarati languages, coupons and offers
 - Provider working hours and custom slots
@@ -229,19 +244,19 @@ Take these on a real phone (Power + Volume down):
 7. **Why Firestore and not Realtime Database?** Firestore has better queries, document/collection structure, transactions and clearer security rules.
 8. **How do two phones stay in sync?** Each screen listens with a Firestore snapshot listener (wrapped in `callbackFlow`). When one phone writes, Firestore pushes the change to every listening phone in about a second.
 9. **What is `callbackFlow`?** It converts a callback-based listener into a Kotlin Flow; `awaitClose` removes the listener when the screen no longer needs it.
-10. **How does "stay logged in" work?** Firebase Auth stores the session on the phone. The Splash screen checks `currentUser`; if present, it reads the role and opens that home.
+10. **How does "stay logged in" work, and what if a user forgets the password?** Firebase Auth stores the session on the phone; the Splash screen checks `currentUser` and opens the right home. "Forgot password?" calls `sendPasswordResetEmail`, and Firebase emails a reset link (free, no server code).
 11. **How are roles handled?** `users/{uid}.role` is customer, provider or admin. After login the app reads it and opens the matching home with its own bottom bar.
 12. **Why can't someone register as admin?** Admin is not offered at registration and the security rules refuse role "admin" on create. The admin role is set by hand in the Firebase Console.
 13. **How does provider approval work?** New providers are saved with `approvalStatus = PENDING` and see a waiting screen. The admin approves or rejects; only approved, available, unblocked providers are shown to customers.
-14. **How do you stop double booking?** Before saving, the app checks for an active booking (requested/accepted/in progress) of that provider on the same date and slot, and refuses if one exists.
+14. **How do you stop double booking?** Each active booking claims a `slots` document with id `providerId_date_slotNumber`. The claim and the booking are saved in one transaction that first checks the slot document does not exist. If two customers confirm at the same moment, only one transaction succeeds; the other gets "already booked". The slot is freed when the booking is rejected, cancelled or completed.
 15. **What is a Firestore transaction and where do you use it?** A group of reads and writes that succeeds or fails together, retrying if data changed meanwhile. Used for every status change, for completing a job (booking + earnings) and for ratings (review + average + isRated).
 16. **Why the start PIN?** It proves the provider is actually at the customer's home before starting. The customer sees it only after acceptance; the job starts only with the correct PIN.
 17. **How is the average rating calculated?** newAverage = (oldAverage × oldCount + newRating) / (oldCount + 1), inside a transaction so two reviews at once cannot give a wrong result.
 18. **How do you prevent rating twice?** The review's document id is the booking id (only one can exist) and the booking gets `isRated = true`; the transaction refuses if either is already set.
 19. **How do notifications work without push?** Important events write a document in `notifications` for the other person. Their app listens live and shows an unread badge; tapping marks it read.
 20. **What happens when the admin blocks a user?** `isBlocked = true`: they are logged out immediately (the app listens to their own document), cannot log in again, blocked providers are hidden, and security rules refuse their writes.
-21. **What do your security rules do?** Users edit only their own profile (never role or blocked status), only admin approves, blocks and edits services, only the booking's customer or provider can change it, reviews are once and cannot be edited, notifications are private.
+21. **What do your security rules do?** Users edit only their own profile (never role or blocked status), only admin approves, blocks and edits services, bookings are readable and changeable only by their own customer, provider or admin, reviews are once and cannot be edited, notifications are private, blocked users cannot write.
 22. **Why store customer and provider names inside the booking?** So a booking and receipt always show correct details without extra reads, even if someone changes their profile later (denormalization).
-23. **How did you test the app?** 14 automatic logic tests (JUnit), Android lint (0 errors) and a 35-case manual test script on two real phones.
-24. **What are the limitations?** No online payment, no push notifications, no GPS; bookings are readable by any logged-in user because of the slot check (future: separate busy-slots collection).
+23. **How did you test the app?** 15 automatic logic tests (JUnit), Android lint (0 errors) and a 40-case manual test script on two real phones.
+24. **What are the limitations?** No online payment, no push notifications, no GPS, no photos; business rules are checked in the app and by security rules, but there is no server code (Cloud Functions need the paid plan).
 25. **What would you add next?** Push notifications, UPI payment, chat, maps, provider ID verification, and Cloud Functions for server-side checks.

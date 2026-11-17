@@ -235,6 +235,9 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onBack = { navController.popBackStack() },
                     onRate = { id -> navController.navigate(Routes.rateReview(id)) },
                     onReceipt = { id -> navController.navigate(Routes.receipt(id)) },
+                    onBookAgain = { providerId, serviceId ->
+                        navController.navigate(Routes.bookingForm(providerId, serviceId))
+                    },
                 )
             }
             composable(Routes.RATE_REVIEW) {

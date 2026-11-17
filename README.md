@@ -11,8 +11,8 @@ Individual academic project · Kotlin · Jetpack Compose · Firebase (free Spark
 
 | Role | Features |
 |---|---|
-| Customer | Register/login, categories, search, service prices, provider list with area filter, provider profile with reviews, booking form (date, slot, address, note, Cash/UPI, price summary), live status tracking, start PIN, cancel, reschedule, call provider, rate & review, receipt, notifications, profile with saved address |
-| Provider | Register (waits for admin approval), availability switch, new requests (accept/reject with reason), start job with customer's PIN, complete with payment confirmation, today's jobs, earnings, job history, notifications |
+| Customer | Register/login, forgot password, categories, search, service prices, provider list with area filter, provider profile with reviews, booking form (date, slot, address, note, Cash/UPI, price summary), live status tracking, start PIN, cancel, reschedule, call provider, rate & review, receipt, book again, notifications, profile with saved address |
+| Provider | Register (waits for admin approval), availability switch, new requests (accept/reject with reason, with confirm popups), start job with customer's PIN, complete with payment confirmation, today's jobs, earnings, recent reviews, job history, notifications |
 | Admin | Dashboard counts, approve/reject providers, block/unblock users, edit service prices and descriptions, hide/show services, all bookings with status filter, all providers, one-time sample data |
 
 ## Tech stack
@@ -63,7 +63,8 @@ To apply them: Firebase Console → Firestore Database → **Rules** → paste t
 
 In short: users can edit only their own profile (never their role or blocked status);
 only the admin approves providers, blocks users and edits services; only a booking's own
-customer or assigned provider can change it; reviews are once per booking and cannot be edited;
+customer or assigned provider (or the admin) can read or change it; double booking is stopped by
+a `slots` document claimed in the same transaction as the booking; reviews are once per booking and cannot be edited;
 users read only their own notifications; blocked users cannot write anything.
 
 ## Documentation

@@ -10,7 +10,7 @@ Always choose the simplest solution that works properly.
 
 ## About me
 
-* Deadline: about 2026-11-18 (2 weeks from 2026-11-04). Full plan, about one phase per day; if we fall behind, cut search, reschedule and notifications first.
+* Deadline: flexible (no longer 2026-11-18; "some days"). All 13 phases are built. Add only a few small, high-value improvements, then test.
 * Development machine: Windows 11, RAM: 8 GB (test on a real phone over USB, not the emulator)
 * My college allows Kotlin or Java. We chose Kotlin.
 

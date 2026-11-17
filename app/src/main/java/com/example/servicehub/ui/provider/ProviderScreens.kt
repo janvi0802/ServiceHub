@@ -46,6 +46,7 @@ fun ProviderHomeScreen(
     val provider by viewModel.provider.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
     val message by viewModel.message.collectAsState()
+    val reviews by viewModel.reviews.collectAsState()
 
     val p = provider
     val all = bookings
@@ -119,6 +120,25 @@ fun ProviderHomeScreen(
         }
         items(today, key = { it.id }) { booking ->
             BookingCard(booking, "Customer: ${booking.customerName}", onClick = { onJobClick(booking.id) })
+        }
+        // What customers said (latest 3)
+        item {
+            Text("Recent reviews (${reviews.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        if (reviews.isEmpty()) {
+            item { Text("No reviews yet. Complete jobs to get rated.", style = MaterialTheme.typography.bodyMedium) }
+        }
+        items(reviews.take(3), key = { "review_${it.id}" }) { review ->
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    val stars = review.rating.coerceIn(0, 5)
+                    Row {
+                        Text(review.customerName, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("★".repeat(stars) + "☆".repeat(5 - stars), color = MaterialTheme.colorScheme.secondary)
+                    }
+                    if (review.comment.isNotBlank()) Text(review.comment, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }

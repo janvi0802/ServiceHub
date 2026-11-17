@@ -10,6 +10,7 @@ import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.repository.newAverage
+import com.example.servicehub.data.repository.slotDocId
 import com.example.servicehub.ui.admin.DashboardStats
 import com.example.servicehub.ui.components.initialsOf
 import com.example.servicehub.ui.components.ratingText
@@ -183,6 +184,21 @@ class LogicTest {
         assertEquals(698, stats.completedValue)   // 198 + 500
         // every status has a number, even if 0
         assertEquals(BookingStatus.entries.size, stats.bookingsByStatus.size)
+    }
+
+    // ------------------------------------------------ busy-slot ids (double-booking protection)
+
+    @Test
+    fun slotIds_sameSlotSameId_differentSlotDifferentId() {
+        val (morning, afternoon) = FixedData.timeSlots
+        val a = slotDocId("prov1", "2026-11-20", morning)
+        // the same provider, date and slot always gives the same id -> only one booking can hold it
+        assertEquals(a, slotDocId("prov1", "2026-11-20", morning))
+        assertEquals("prov1_2026-11-20_0", a)
+        // anything different -> a different id
+        assertFalse(a == slotDocId("prov1", "2026-11-20", afternoon))
+        assertFalse(a == slotDocId("prov1", "2026-11-21", morning))
+        assertFalse(a == slotDocId("prov2", "2026-11-20", morning))
     }
 
     @Test

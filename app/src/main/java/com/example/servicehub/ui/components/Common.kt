@@ -118,6 +118,24 @@ fun openDialer(context: Context, phone: String) {
     context.startActivity(intent)
 }
 
+/** A simple "Are you sure?" popup, so one accidental tap cannot change a booking. */
+@Composable
+fun ConfirmDialog(
+    title: String,
+    message: String,
+    confirmText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
+    )
+}
+
 /**
  * A popup that asks for a reason (used for cancel and reject).
  * [onConfirm] gets the typed reason; the button stays disabled until something is typed.

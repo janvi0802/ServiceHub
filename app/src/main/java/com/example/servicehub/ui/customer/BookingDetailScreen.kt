@@ -56,6 +56,7 @@ fun BookingDetailScreen(
     onBack: () -> Unit,
     onRate: (String) -> Unit,
     onReceipt: (String) -> Unit,
+    onBookAgain: (providerId: String, serviceId: String) -> Unit,
     viewModel: BookingDetailViewModel = viewModel(),
 ) {
     val load by viewModel.booking.collectAsState()
@@ -116,6 +117,14 @@ fun BookingDetailScreen(
                     }
                     OutlinedButton(onClick = { onReceipt(booking.id) }, modifier = Modifier.weight(1f)) { Text("View receipt") }
                 }
+            }
+
+            // Same provider and service again in one tap (the form checks the provider is still available).
+            if (status == BookingStatus.COMPLETED || status == BookingStatus.CANCELLED) {
+                OutlinedButton(
+                    onClick = { onBookAgain(booking.providerId, booking.serviceId) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Book again") }
             }
 
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }

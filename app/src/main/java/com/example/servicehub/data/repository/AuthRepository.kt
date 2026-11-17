@@ -45,6 +45,11 @@ object AuthRepository {
         auth.signOut()
     }
 
+    /** Firebase emails a link to choose a new password (free, no server code needed). */
+    suspend fun sendPasswordReset(email: String) {
+        auth.sendPasswordResetEmail(email).await()
+    }
+
     /**
      * Creates the login account, then saves the person's data in Firestore.
      * Providers also get a providers/{uid} document with approvalStatus = PENDING.

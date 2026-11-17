@@ -22,16 +22,44 @@ import kotlin.random.Random
 class BookingException(message: String) : Exception(message)
 
 /**
+ * Id of the "slot" document that marks a provider as busy, e.g. "abc123_2026-11-20_0"
+ * (provider id, date, slot number 0/1/2). Only ONE document can have this id,
+ * so only one active booking can hold a provider's slot.
+ */
+fun slotDocId(providerId: String, date: String, timeSlot: String): String =
+    "${providerId}_${date}_${FixedData.timeSlots.indexOf(timeSlot)}"
+
+/**
  * Everything about bookings.
  *
  * Status changes use Firestore TRANSACTIONS: we read the booking's current status and only
  * update it if the move is allowed (e.g. only a REQUESTED booking can be accepted).
  * If two phones act at the same moment, the transaction makes sure only one change wins.
+ *
+ * Busy slots: every active booking owns one document in "slots" (see [slotDocId]).
+ * It is created together with the booking and deleted when the booking is
+ * rejected, cancelled or completed. It holds no personal details, so bookings
+ * themselves can stay private to their customer and provider.
  */
 object BookingRepository {
 
     private val db = FirebaseFirestore.getInstance()
     private val bookings = db.collection("bookings")
+    private val slots = db.collection("slots")
+
+    private fun slotRef(providerId: String, date: String, timeSlot: String) =
+        slots.document(slotDocId(providerId, date, timeSlot))
+
+    private fun slotRef(booking: Booking) = slotRef(booking.providerId, booking.date, booking.timeSlot)
+
+    /** What a slot document stores: who holds it (no address, phone or names). */
+    private fun slotData(booking: Booking) = mapOf(
+        "providerId" to booking.providerId,
+        "customerId" to booking.customerId,
+        "bookingId" to booking.id,
+        "date" to booking.date,
+        "timeSlot" to booking.timeSlot,
+    )
 
     // ---------------------------------------------------------------- reading (live)
 
@@ -54,20 +82,10 @@ object BookingRepository {
     // ---------------------------------------------------------------- creating
 
     /**
-     * True if the provider already has an ACTIVE booking (requested/accepted/in progress)
-     * on this date and slot. [ignoreBookingId] skips the booking being rescheduled.
+     * Saves a new REQUESTED booking and returns its id. Fails if the slot is taken.
+     * The slot check and the save happen in ONE transaction: if two customers press
+     * "Confirm" for the same provider and slot at the same moment, only one succeeds.
      */
-    suspend fun isSlotTaken(providerId: String, date: String, timeSlot: String, ignoreBookingId: String = ""): Boolean {
-        val snapshot = bookings
-            .whereEqualTo("providerId", providerId)
-            .whereEqualTo("date", date)
-            .whereEqualTo("timeSlot", timeSlot)
-            .get().await()
-        return snapshot.toObjects(Booking::class.java)
-            .any { it.id != ignoreBookingId && it.bookingStatus.isActive }
-    }
-
-    /** Saves a new REQUESTED booking and returns its id. Fails if the slot is taken. */
     suspend fun createBooking(
         customer: User,
         provider: Provider,
@@ -92,9 +110,7 @@ object BookingRepository {
         if (latestService == null || !latestService.isActive) {
             throw BookingException("${service.name} is not offered right now.")
         }
-        if (isSlotTaken(provider.id, date, timeSlot)) {
-            throw BookingException("${provider.name} is already booked for this slot. Please choose another date or slot.")
-        }
+        if (timeSlot !in FixedData.timeSlots) throw BookingException("Please choose a time slot.")
         val ref = bookings.document()          // creates a new random id
         val now = System.currentTimeMillis()
         val booking = Booking(
@@ -112,7 +128,15 @@ object BookingRepository {
             paymentStatus = PaymentStatus.PENDING,
             createdAt = now, updatedAt = now,
         )
-        ref.set(booking).await()
+        val slot = slotRef(booking)
+        db.runTransaction<Unit> { transaction ->
+            if (transaction.get(slot).exists()) {
+                throw BookingException("${provider.name} is already booked for this slot. Please choose another date or slot.")
+            }
+            transaction.set(slot, slotData(booking))   // claim the slot
+            transaction.set(ref, booking)              // save the booking
+            Unit
+        }.await()
         NotificationRepository.send(
             provider.id, "New booking request",
             "${customer.name} requested ${latestService.name} on ${slotText(booking)}.", ref.id,
@@ -129,12 +153,15 @@ object BookingRepository {
      * The one place where a booking's status changes.
      * Reads the booking inside a transaction, checks the current status is one of [allowedFrom],
      * optionally runs an extra [check], then saves [changes] plus updatedAt.
+     * [releaseSlot] = true when the booking ends (rejected/cancelled), so the provider's
+     * slot becomes free again in the same transaction.
      * Returns the booking as it was BEFORE the change (used for notification texts).
      */
     private suspend fun changeBooking(
         bookingId: String,
         allowedFrom: Set<BookingStatus>,
         changes: Map<String, Any>,
+        releaseSlot: Boolean = false,
         check: (Booking) -> Unit = {},
     ): Booking {
         val ref = bookings.document(bookingId)
@@ -146,6 +173,7 @@ object BookingRepository {
             }
             check(booking)
             transaction.update(ref, changes + ("updatedAt" to System.currentTimeMillis()))
+            if (releaseSlot) transaction.delete(slotRef(booking))
             booking
         }.await()
     }
@@ -167,6 +195,7 @@ object BookingRepository {
         val b = changeBooking(
             bookingId, setOf(BookingStatus.REQUESTED),
             mapOf("status" to BookingStatus.REJECTED.name, "rejectReason" to reason),
+            releaseSlot = true,
         )
         NotificationRepository.send(
             b.customerId, "Booking rejected",
@@ -191,6 +220,7 @@ object BookingRepository {
         val b = changeBooking(
             bookingId, setOf(BookingStatus.REQUESTED, BookingStatus.ACCEPTED),
             mapOf("status" to BookingStatus.CANCELLED.name, "cancelReason" to reason),
+            releaseSlot = true,
         )
         NotificationRepository.send(
             b.providerId, "Booking cancelled",
@@ -206,16 +236,35 @@ object BookingRepository {
         if (newDate == booking.date && newSlot == booking.timeSlot) {
             throw BookingException("Please choose a different date or slot.")
         }
-        if (isSlotTaken(booking.providerId, newDate, newSlot, ignoreBookingId = booking.id)) {
-            throw BookingException("${booking.providerName} is already booked for that slot. Choose another.")
-        }
-        changeBooking(
-            booking.id, setOf(BookingStatus.REQUESTED, BookingStatus.ACCEPTED),
-            mapOf(
-                "date" to newDate, "timeSlot" to newSlot,
-                "status" to BookingStatus.REQUESTED.name, "acceptedAt" to 0L,
-            ),
-        )
+        if (newSlot !in FixedData.timeSlots) throw BookingException("Please choose a time slot.")
+
+        // One transaction: check the new slot is free, give back the old slot, claim the new one.
+        val ref = bookings.document(booking.id)
+        val newSlotRef = slotRef(booking.providerId, newDate, newSlot)
+        db.runTransaction<Unit> { transaction ->
+            // reads first
+            val current = transaction.get(ref).toObject(Booking::class.java)
+                ?: throw BookingException("Booking not found.")
+            if (current.bookingStatus != BookingStatus.REQUESTED && current.bookingStatus != BookingStatus.ACCEPTED) {
+                throw BookingException("Not possible: this booking is already ${current.bookingStatus.label}.")
+            }
+            if (transaction.get(newSlotRef).exists()) {
+                throw BookingException("${current.providerName} is already booked for that slot. Choose another.")
+            }
+            // then writes
+            transaction.delete(slotRef(current))
+            val moved = current.copy(date = newDate, timeSlot = newSlot)
+            transaction.set(newSlotRef, slotData(moved))
+            transaction.update(
+                ref,
+                mapOf(
+                    "date" to newDate, "timeSlot" to newSlot,
+                    "status" to BookingStatus.REQUESTED.name, "acceptedAt" to 0L,
+                    "updatedAt" to System.currentTimeMillis(),
+                ),
+            )
+            Unit
+        }.await()
         val moved = booking.copy(date = newDate, timeSlot = newSlot)
         NotificationRepository.send(
             booking.providerId, "Booking rescheduled",
@@ -257,6 +306,7 @@ object BookingRepository {
                     "totalEarnings" to FieldValue.increment(booking.totalAmount.toLong()),
                 ),
             )
+            transaction.delete(slotRef(booking))   // job finished: slot no longer busy
             booking
         }.await()
         NotificationRepository.send(

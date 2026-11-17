@@ -6,6 +6,7 @@ import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.Provider
+import com.example.servicehub.data.model.Review
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.BookingRepository
 import com.example.servicehub.data.repository.ProviderRepository
@@ -31,6 +32,11 @@ class ProviderJobsViewModel : ViewModel() {
     val bookings: StateFlow<List<Booking>?> = BookingRepository.providerBookings(providerId)
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** Reviews customers wrote about this provider, newest first. */
+    val reviews: StateFlow<List<Review>> = ProviderRepository.reviewsFor(providerId)
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val message = MutableStateFlow<String?>(null)
 

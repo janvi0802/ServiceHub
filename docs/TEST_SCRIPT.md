@@ -51,6 +51,11 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC33 | Bookings filter | Admin → Bookings → filter Completed | Only completed bookings | |
 | TC34 | Profile | Edit address → Save → new booking | New address pre-filled | |
 | TC35 | Security | (After rules) customer tries nothing special – just use the app normally | Everything above still works (rules allow normal use) | |
+| TC36 | Forgot password | Login → type email → "Forgot password?" | Message "reset link has been sent"; email arrives (check spam); new password works | |
+| TC37 | Confirm popups | Provider taps Accept / Start job | "Are you sure?" popup first; Back does nothing | |
+| TC38 | Book again | Completed or cancelled booking → "Book again" | Booking form opens with the same provider and service | |
+| TC39 | Provider reviews | After TC20, open Provider Home | "Recent reviews" shows the customer's stars and comment | |
+| TC40 | Same-moment booking | Two customer phones book the same provider, date and slot and tap Confirm together | One succeeds, the other gets "already booked" | |
 
 ## Automatic tests (no phone needed)
 
@@ -58,6 +63,6 @@ Mark each row ✅ or ❌ and note what you saw.
 gradlew.bat testDebugUnitTest
 ```
 
-14 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
+15 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
 dates and slots, price total, sample data completeness, provider job lists and earnings,
-rating average, admin dashboard counts.
+rating average, admin dashboard counts, busy-slot ids.

@@ -78,6 +78,12 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 - Areas are Ahmedabad areas (change in `FixedData.kt` if needed).
 - Firestore test mode ends after 30 days; real rules come in Phase 12.
 
+- Improvements (after Phase 13): busy-slot documents claimed in a transaction (race-proof
+  double-booking check; bookings now private in rules), forgot password, confirm popups for
+  Accept/Start, Book again, recent reviews on Provider Home. 15 logic tests, lint 0 errors.
+  Note: test bookings made BEFORE this change have no slot document, so they don't block
+  their slot. New bookings do.
+
 ## Next step
 
 1. Publish `firestore.rules` in Firebase Console (Firestore → Rules → paste → Publish).

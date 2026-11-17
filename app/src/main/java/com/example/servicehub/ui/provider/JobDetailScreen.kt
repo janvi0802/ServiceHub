@@ -40,6 +40,8 @@ import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.ui.booking.BookingDetailViewModel
 import com.example.servicehub.ui.booking.BookingInfoCard
 import com.example.servicehub.ui.booking.BookingLoad
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.ui.components.ConfirmDialog
 import com.example.servicehub.ui.components.EmptyBox
 import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ReasonDialog
@@ -66,6 +68,8 @@ fun JobDetailScreen(
 
     var showReject by rememberSaveable { mutableStateOf(false) }
     var showComplete by rememberSaveable { mutableStateOf(false) }
+    var showAccept by rememberSaveable { mutableStateOf(false) }
+    var showStart by rememberSaveable { mutableStateOf(false) }
     var pin by rememberSaveable { mutableStateOf("") }
 
     Column(Modifier.fillMaxSize()) {
@@ -93,7 +97,11 @@ fun JobDetailScreen(
 
             when (status) {
                 BookingStatus.REQUESTED -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = viewModel::accept, enabled = !isBusy, modifier = Modifier.weight(1f).height(50.dp)) {
+                    Button(
+                        onClick = { viewModel.clearMessage(); showAccept = true },
+                        enabled = !isBusy,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                    ) {
                         Text("Accept")
                     }
                     OutlinedButton(
@@ -113,7 +121,7 @@ fun JobDetailScreen(
                         keyboardType = KeyboardType.NumberPassword,
                     )
                     Button(
-                        onClick = { viewModel.start(pin) { pin = "" } },
+                        onClick = { viewModel.clearMessage(); showStart = true },
                         enabled = !isBusy && pin.length == 4,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                     ) { Text("Start job") }
@@ -136,6 +144,30 @@ fun JobDetailScreen(
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         }
 
+        if (showAccept) {
+            ConfirmDialog(
+                title = "Accept this job?",
+                message = "${booking.serviceName} for ${booking.customerName} on ${DateUtils.pretty(booking.date)}, ${booking.timeSlot}.",
+                confirmText = "Accept",
+                onConfirm = {
+                    showAccept = false
+                    viewModel.accept()
+                },
+                onDismiss = { showAccept = false },
+            )
+        }
+        if (showStart) {
+            ConfirmDialog(
+                title = "Start the job now?",
+                message = "Start only when you are at the customer's address.",
+                confirmText = "Start job",
+                onConfirm = {
+                    showStart = false
+                    viewModel.start(pin) { pin = "" }
+                },
+                onDismiss = { showStart = false },
+            )
+        }
         if (showReject) {
             ReasonDialog(
                 title = "Reject this job?",

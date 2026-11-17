@@ -65,10 +65,17 @@ fun LoginScreen(
         TextInput(state.email, viewModel::onEmailChange, "Email", keyboardType = KeyboardType.Email)
         Spacer(Modifier.height(12.dp))
         TextInput(state.password, viewModel::onPasswordChange, "Password", isPassword = true)
+        TextButton(onClick = viewModel::forgotPassword, enabled = !state.isLoading, modifier = Modifier.align(Alignment.End)) {
+            Text("Forgot password?")
+        }
 
         state.error?.let {
             Spacer(Modifier.height(12.dp))
             Text(it, color = MaterialTheme.colorScheme.error)
+        }
+        state.info?.let {
+            Spacer(Modifier.height(12.dp))
+            Text(it, color = MaterialTheme.colorScheme.primary)
         }
 
         Spacer(Modifier.height(20.dp))
