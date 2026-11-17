@@ -113,7 +113,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
     val requestsFlow = remember(userId, role) {
         if (userId == null || role != Roles.PROVIDER) flowOf(0)
         else BookingRepository.providerBookings(userId)
-            .map { ProviderJobsViewModel.newRequests(it).size }
+            .map { ProviderJobsViewModel.newRequests(it).size + ProviderJobsViewModel.revisits(it).size }
             .catch { emit(0) }
     }
     val requestCount by requestsFlow.collectAsState(initial = 0)

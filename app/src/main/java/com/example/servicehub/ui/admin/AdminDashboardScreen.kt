@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Engineering
 import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Button
@@ -98,7 +99,7 @@ fun AdminDashboardScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // 1. Needs attention
-            val attention = s.pendingProviders + openComplaints + s.expiredRequests
+            val attention = s.pendingProviders + openComplaints + s.expiredRequests + s.openRevisits
             AppCard {
                 CardTitle(if (attention == 0) "All caught up" else "Needs attention")
                 Caption(if (attention == 0) "Nothing is waiting for you right now." else "Items waiting for an admin decision.")
@@ -109,6 +110,10 @@ fun AdminDashboardScreen(
                 if (openComplaints > 0) {
                     ListRow(Icons.Filled.ReportProblem, "$openComplaints open complaint(s)",
                         "Call both sides and mark as resolved", StatusRejected, onClick = onOpenComplaints)
+                }
+                if (s.openRevisits > 0) {
+                    ListRow(Icons.Filled.Replay, "${s.openRevisits} free revisit(s) waiting",
+                        "7-day guarantee: providers must come back", StatusRequested, onClick = onOpenBookings)
                 }
                 if (s.expiredRequests > 0) {
                     ListRow(Icons.Filled.AssignmentLate, "${s.expiredRequests} expired request(s)",
@@ -124,6 +129,21 @@ fun AdminDashboardScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatTile("Bookings", "${s.totalBookings}", Icons.Filled.EventNote, StatusAccepted, Modifier.weight(1f), onOpenBookings)
                 StatTile("Completed value", rupees(s.completedValue), Icons.Filled.CurrencyRupee, StatusCompleted, Modifier.weight(1f), onOpenBookings)
+            }
+            // Money split: what ServiceHub earns vs what providers earn
+            AppCard {
+                CardTitle("Earnings split")
+                Caption("From completed bookings. ServiceHub earns the visit fee; providers keep the rest.")
+                Row(Modifier.padding(top = 12.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        Text(rupees(s.platformEarnings), style = MaterialTheme.typography.titleLarge, color = BrandBlue)
+                        Caption("Platform (visit fees)")
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(rupees(s.providerEarnings), style = MaterialTheme.typography.titleLarge, color = BrandOrange)
+                        Caption("Providers")
+                    }
+                }
             }
 
             // 3. Trends

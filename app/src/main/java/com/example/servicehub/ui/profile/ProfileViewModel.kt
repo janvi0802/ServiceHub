@@ -3,6 +3,7 @@ package com.example.servicehub.ui.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.servicehub.data.model.Roles
+import com.example.servicehub.data.model.SavedAddress
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.UserRepository
@@ -87,6 +88,28 @@ class ProfileViewModel : ViewModel() {
             } catch (e: Exception) {
                 _uiState.update { it.copy(isSaving = false, message = "Could not save. Check internet.") }
             }
+        }
+    }
+
+    /** Adds a saved address (e.g. "Work") and saves the list at once. */
+    fun addSavedAddress(label: String, address: String) {
+        val user = _uiState.value.user ?: return
+        if (label.isBlank() || address.isBlank()) return
+        saveAddresses(user.savedAddresses + SavedAddress(label.trim(), address.trim()), "Address added ✓")
+    }
+
+    fun removeSavedAddress(index: Int) {
+        val user = _uiState.value.user ?: return
+        saveAddresses(user.savedAddresses.filterIndexed { i, _ -> i != index }, "Address removed")
+    }
+
+    private fun saveAddresses(list: List<SavedAddress>, successText: String) = viewModelScope.launch {
+        val user = _uiState.value.user ?: return@launch
+        try {
+            UserRepository.setSavedAddresses(user.id, list)
+            _uiState.update { it.copy(user = user.copy(savedAddresses = list), message = successText) }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(message = "Could not save the address. Check internet.") }
         }
     }
 

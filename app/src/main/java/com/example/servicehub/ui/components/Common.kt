@@ -287,6 +287,7 @@ fun receiptShareText(b: Booking): String = buildString {
     appendLine("Provider: ${b.providerName}")
     appendLine("Date: ${DateUtils.pretty(b.date)}, ${b.timeSlot}")
     appendLine("Service price: ${rupees(b.servicePrice)}")
+    b.extraItems.forEach { appendLine("${it.name}: ${rupees(it.amount)}") }
     appendLine("Visit fee: ${rupees(b.visitFee)}")
     appendLine("Total paid: ${rupees(b.totalAmount)} by ${b.paymentMode}")
     append("Thank you for choosing ServiceHub!")

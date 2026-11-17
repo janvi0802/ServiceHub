@@ -7,6 +7,7 @@ import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Review
+import com.example.servicehub.data.model.RevisitStatus
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.BookingRepository
 import com.example.servicehub.data.repository.ProviderRepository
@@ -78,6 +79,10 @@ class ProviderJobsViewModel : ViewModel() {
         fun newRequests(all: List<Booking>) =
             all.filter { it.bookingStatus == BookingStatus.REQUESTED && !it.isExpired }.sortedBy { it.date + it.timeSlot }
 
+        /** Completed jobs where the customer asked for a free revisit (7-day guarantee). */
+        fun revisits(all: List<Booking>) =
+            all.filter { it.revisitStatus == RevisitStatus.REQUESTED }.sortedBy { it.revisitRequestedAt }
+
         /** Accepted or in progress, earliest date first. */
         fun upcoming(all: List<Booking>) =
             all.filter { it.bookingStatus == BookingStatus.ACCEPTED || it.bookingStatus == BookingStatus.IN_PROGRESS }
@@ -98,12 +103,13 @@ class ProviderJobsViewModel : ViewModel() {
             val completed = all.filter { it.bookingStatus == BookingStatus.COMPLETED && it.completedAt > 0 }
             return DateUtils.lastDays(7, now).map { day ->
                 val label = DateUtils.weekdayShortNames[(DateUtils.weekdayOf(day) - 1).coerceIn(0, 6)]
-                label to completed.filter { DateUtils.dateOf(it.completedAt) == day }.sumOf { it.totalAmount }
+                label to completed.filter { DateUtils.dateOf(it.completedAt) == day }.sumOf { it.providerEarning }
             }
         }
 
+        /** What the provider earned today (their share: total minus the platform's visit fee). */
         fun todaysEarnings(all: List<Booking>) = all
             .filter { it.bookingStatus == BookingStatus.COMPLETED && DateUtils.isToday(it.completedAt) }
-            .sumOf { it.totalAmount }
+            .sumOf { it.providerEarning }
     }
 }

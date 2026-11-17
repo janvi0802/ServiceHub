@@ -30,6 +30,8 @@ fun BookingInfoCard(booking: Booking, personLabel: String, personName: String) {
             if (booking.note.isNotBlank()) InfoRow("Problem", booking.note)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             InfoRow("Service price", rupees(booking.servicePrice))
+            // Spare parts / extra work added by the provider at completion
+            booking.extraItems.forEach { InfoRow(it.name, rupees(it.amount)) }
             InfoRow("Visit fee", rupees(booking.visitFee))
             InfoRow("Total", rupees(booking.totalAmount), bold = true)
             InfoRow(

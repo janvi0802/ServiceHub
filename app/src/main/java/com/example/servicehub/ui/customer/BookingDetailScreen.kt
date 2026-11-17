@@ -44,6 +44,14 @@ import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.ComplaintStatus
+import com.example.servicehub.data.model.GUARANTEE_DAYS
+import com.example.servicehub.data.model.RevisitStatus
+import com.example.servicehub.ui.components.Caption
+import com.example.servicehub.ui.theme.StatusAccepted
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.VerifiedUser
 import com.example.servicehub.data.repository.PROVIDER_CANCEL_PREFIX
 import com.example.servicehub.ui.theme.StatusCompleted
 import com.example.servicehub.ui.theme.StatusRequested
@@ -81,6 +89,7 @@ fun BookingDetailScreen(
     var showCancel by rememberSaveable { mutableStateOf(false) }
     var showReschedule by rememberSaveable { mutableStateOf(false) }
     var showReport by rememberSaveable { mutableStateOf(false) }
+    var showRevisit by rememberSaveable { mutableStateOf(false) }
     val complaints by viewModel.myComplaints.collectAsState()
     val provider by viewModel.provider.collectAsState()
 
@@ -122,8 +131,27 @@ fun BookingDetailScreen(
                 StatusHint(status, cancelledByProvider = booking.cancelReason.startsWith(PROVIDER_CANCEL_PREFIX))
             }
 
+            // "On my way" from the provider (status is still Accepted)
+            if (status == BookingStatus.ACCEPTED && booking.onTheWayAt > 0) {
+                InfoBanner(
+                    Icons.Filled.DirectionsRun,
+                    "${booking.providerName} is on the way. Keep your PIN ready.",
+                    StatusAccepted,
+                )
+            }
+
             // The PIN is shown only after the provider accepts; the provider needs it to start.
             if (status == BookingStatus.ACCEPTED) PinCard(booking.startPin)
+
+            // 7-day service guarantee
+            when (booking.revisitStatus) {
+                RevisitStatus.REQUESTED -> InfoBanner(
+                    Icons.Filled.Replay,
+                    "Free revisit requested: \"${booking.revisitReason}\". ${booking.providerName} will contact you.",
+                    StatusRequested,
+                )
+                RevisitStatus.DONE -> InfoBanner(Icons.Filled.TaskAlt, "Free revisit completed.", StatusCompleted)
+            }
 
             BookingInfoCard(booking, "Provider", booking.providerName)
             TimelineCard(booking)
@@ -156,6 +184,19 @@ fun BookingDetailScreen(
                     }
                     OutlinedButton(onClick = { onReceipt(booking.id) }, modifier = Modifier.weight(1f)) { Text("View receipt") }
                 }
+            }
+
+            if (booking.canRequestRevisit) {
+                OutlinedButton(
+                    onClick = { viewModel.clearMessage(); showRevisit = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Filled.VerifiedUser, contentDescription = null)
+                    Text("  Problem came back? Free revisit")
+                }
+                Caption(
+                    "$GUARANTEE_DAYS-day service guarantee: if the same problem returns, the professional comes back free.",
+                )
             }
 
             // Rejected or expired: same service, choose a different provider.
@@ -194,6 +235,17 @@ fun BookingDetailScreen(
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         }
 
+        if (showRevisit) {
+            ReasonDialog(
+                title = "Request a free revisit",
+                confirmText = "Request revisit",
+                onConfirm = { reason ->
+                    showRevisit = false
+                    viewModel.requestRevisit(reason)
+                },
+                onDismiss = { showRevisit = false },
+            )
+        }
         if (showReport) {
             ReasonDialog(
                 title = "Report a problem",

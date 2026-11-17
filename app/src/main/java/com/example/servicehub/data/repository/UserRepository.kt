@@ -5,6 +5,7 @@ import com.example.servicehub.data.liveObject
 import kotlinx.coroutines.flow.Flow
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
+import com.example.servicehub.data.model.SavedAddress
 import com.example.servicehub.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
 
@@ -22,6 +23,13 @@ object UserRepository {
     suspend fun getUser(uid: String): User? {
         val snapshot = users.document(uid).get().await()
         return snapshot.toObject(User::class.java)
+    }
+
+    /** Replaces the customer's list of saved addresses (Home / Work / ...). */
+    suspend fun setSavedAddresses(uid: String, addresses: List<SavedAddress>) {
+        users.document(uid)
+            .update("savedAddresses", addresses.map { mapOf("label" to it.label, "address" to it.address) })
+            .await()
     }
 
     /** users/{uid}, live. Used to log a person out the moment the admin blocks them. */

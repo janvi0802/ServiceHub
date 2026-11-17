@@ -339,7 +339,8 @@ fun ProviderRequestsScreen(
         if (all == null) { LoadingBox(); return@Column }
         val requests = ProviderJobsViewModel.newRequests(all)
         val upcoming = ProviderJobsViewModel.upcoming(all)
-        if (requests.isEmpty() && upcoming.isEmpty()) {
+        val revisits = ProviderJobsViewModel.revisits(all)
+        if (requests.isEmpty() && upcoming.isEmpty() && revisits.isEmpty()) {
             EmptyBox(
                 title = "No jobs yet",
                 message = "New requests from customers will appear here. Stay available to get more bookings.",
@@ -351,6 +352,9 @@ fun ProviderRequestsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (revisits.isNotEmpty()) {
+                jobSection("Free revisits (${revisits.size})", revisits, "", onJobClick)
+            }
             jobSection("New requests (${requests.size})", requests, "No new requests.", onJobClick)
             jobSection("Upcoming (${upcoming.size})", upcoming, "No upcoming jobs.", onJobClick)
         }

@@ -106,6 +106,13 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC89 | User detail | Admin → Users → tap a user | Details, Call, Block/Unblock (with confirm), bookings and spent/earned | |
 | TC90 | Profile | Any role → Profile | Header card, Personal details, Help & safety for that role, Log out asks to confirm | |
 | TC91 | Notification icons | Alerts | Each notification has its own icon/colour; grouped Today / Earlier | |
+| TC92 | On my way | Provider: accepted job → "I'm on my way" | Customer sees "… is on the way", gets a notification; timeline shows "On the way" | |
+| TC93 | Extra parts | Provider: Complete → + Add item "Tap cartridge" ₹180 | Amount to collect updates; receipt lists the item; total = service + item + visit fee | |
+| TC94 | Bad extra | Item with no name or ₹0 | Complete button disabled with a message | |
+| TC95 | Free revisit | Customer: completed booking (within 7 days) → "Problem came back? Free revisit" + reason | Provider sees it under "Free revisits" with a badge; admin dashboard lists it | |
+| TC96 | Revisit done | Provider → Mark revisit done | Customer sees "Free revisit completed" + notification; button gone (only once) | |
+| TC97 | Saved addresses | Profile → Saved addresses → + Add "Work" | Booking form shows Profile / Work chips; tapping fills the address | |
+| TC98 | Earnings split | Complete a ₹149 job (total ₹198) | Provider earnings +₹149; admin "Earnings split": platform ₹49, providers ₹149 | |
 | TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)

@@ -9,6 +9,7 @@ import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
+import com.example.servicehub.data.model.RevisitStatus
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.AdminRepository
@@ -34,6 +35,12 @@ data class DashboardStats(
     val expiredRequests: Int = 0,
     val totalBookings: Int = 0,
     val completedValue: Int = 0,
+    /** ServiceHub's own income: the ₹49 visit fee of every completed booking. */
+    val platformEarnings: Int = 0,
+    /** What providers earned: completed value minus the visit fees. */
+    val providerEarnings: Int = 0,
+    /** Completed jobs where the customer asked for a free revisit that is not done yet. */
+    val openRevisits: Int = 0,
     val topProviders: List<Provider> = emptyList(),
     /** Bookings made on each of the last 7 days, oldest first, e.g. ("Mon", 3). */
     val bookingsPerDay: List<Pair<String, Int>> = emptyList(),
@@ -55,6 +62,9 @@ data class DashboardStats(
             expiredRequests = bookings.count { it.isExpired },
             totalBookings = bookings.size,
             completedValue = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.totalAmount },
+            platformEarnings = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.visitFee },
+            providerEarnings = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.providerEarning },
+            openRevisits = bookings.count { it.revisitStatus == RevisitStatus.REQUESTED },
             topProviders = topProviders(providers),
             bookingsPerDay = bookingsPerDay(bookings),
             revenueByCategory = revenueByCategory(bookings),

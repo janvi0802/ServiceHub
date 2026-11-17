@@ -274,6 +274,11 @@ Take these on a real phone (Power + Volume down):
   the customer chooses; "⚡ Available today" finds someone for urgent jobs.
 - **Weekly days off designed for urgency:** a day off belongs to one provider and only blocks
   NEW bookings; other providers stay bookable, and existing jobs are never cancelled silently.
+- **7-day service guarantee:** if the problem returns within 7 days, the customer asks for a free
+  revisit in one tap; the provider sees it with a badge and marks it done.
+- **Honest billing:** spare parts are added as line items at completion, so the receipt shows
+  exactly what was paid; the ₹49 visit fee is ServiceHub's platform income, providers keep the rest.
+- **"On my way":** the customer knows the professional is coming before the PIN step.
 - **Complaints with admin follow-up:** customers can report a problem on any booking; the admin
   calls both sides, marks it resolved, and the customer is notified.
 

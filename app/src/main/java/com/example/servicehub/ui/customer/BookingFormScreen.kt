@@ -250,6 +250,22 @@ fun BookingFormScreen(
             }
 
             SectionTitle("Address")
+            // One tap to use the profile address or a saved one (Home / Work / ...)
+            val choices = buildList {
+                state.customer?.address?.takeIf { it.isNotBlank() }?.let { add("Profile" to it) }
+                state.customer?.savedAddresses.orEmpty().forEach { add(it.label to it.address) }
+            }
+            if (choices.size > 1) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    choices.forEach { (label, address) ->
+                        FilterChip(
+                            selected = state.address == address,
+                            onClick = { viewModel.onAddressChange(address) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
             TextInput(state.address, viewModel::onAddressChange, "Service address", singleLine = false)
 
             SectionTitle("Problem (optional)")

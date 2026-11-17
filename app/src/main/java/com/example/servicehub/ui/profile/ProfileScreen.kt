@@ -46,6 +46,44 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.servicehub.ui.components.DropdownField
 import com.example.servicehub.ui.components.TextInput
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
+
+/** Label (Home / Work / Other) + address. Saving needs both. */
+@Composable
+private fun AddAddressDialog(onSave: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var label by remember { mutableStateOf("Home") }
+    var custom by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    val finalLabel = if (label == "Other") custom.trim() else label
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add address") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Home", "Work", "Other").forEach { option ->
+                        FilterChip(selected = option == label, onClick = { label = option }, label = { Text(option) })
+                    }
+                }
+                if (label == "Other") TextInput(custom, { custom = it.take(20) }, "Name, e.g. Parents")
+                TextInput(address, { address = it.take(200) }, "Full address", singleLine = false)
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(finalLabel, address) },
+                enabled = finalLabel.isNotBlank() && address.isNotBlank(),
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
+    )
+}
 
 /** Shows and edits the logged-in person's details. Same screen for every role. */
 @Composable
@@ -61,6 +99,7 @@ fun ProfileScreen(
     }
 
     var showLogout by remember { mutableStateOf(false) }
+    var showAddAddress by remember { mutableStateOf(false) }
     val context = LocalContext.current
     // App version, read from the installed app (versionName in app/build.gradle.kts)
     val version = remember {
@@ -119,6 +158,29 @@ fun ProfileScreen(
                 }
             }
 
+            // Saved addresses (customers): pick them in the booking form with one tap
+            if (!state.isProvider) {
+                SectionHeader("Saved addresses", actionLabel = "+ Add", onAction = { showAddAddress = true })
+                AppCard {
+                    val saved = state.user?.savedAddresses.orEmpty()
+                    if (saved.isEmpty()) {
+                        Caption("Add Home, Work or any other place you book services for.")
+                    }
+                    saved.forEachIndexed { index, a ->
+                        ListRow(
+                            icon = if (a.label.equals("Work", true)) Icons.Filled.Work else Icons.Filled.Home,
+                            title = a.label,
+                            subtitle = a.address,
+                            trailing = {
+                                IconButton(onClick = { viewModel.removeSavedAddress(index) }) {
+                                    Icon(Icons.Filled.DeleteOutline, contentDescription = "Remove ${a.label}")
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+
             // Help, written for this role
             SectionHeader("Help & safety")
             AppCard {
@@ -145,6 +207,15 @@ fun ProfileScreen(
         }
     }
 
+    if (showAddAddress) {
+        AddAddressDialog(
+            onSave = { label, address ->
+                viewModel.addSavedAddress(label, address)
+                showAddAddress = false
+            },
+            onDismiss = { showAddAddress = false },
+        )
+    }
     if (showLogout) {
         ConfirmDialog(
             title = "Log out?",

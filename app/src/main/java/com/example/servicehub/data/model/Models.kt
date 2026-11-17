@@ -53,7 +53,31 @@ data class User(
     @get:PropertyName("isBlocked") @set:PropertyName("isBlocked")
     var isBlocked: Boolean = false,
     val createdAt: Long = 0L,
+    /** Extra addresses the customer saved, e.g. Home / Work / Parents. */
+    val savedAddresses: List<SavedAddress> = emptyList(),
 )
+
+/** One saved address, e.g. label "Work", address "Office 4, CG Road". */
+data class SavedAddress(
+    val label: String = "",
+    val address: String = "",
+)
+
+/** One extra item the provider adds when completing a job, e.g. "Tap cartridge" ₹180. */
+data class ExtraItem(
+    val name: String = "",
+    val amount: Int = 0,
+)
+
+/** Values for Booking.revisitStatus (7-day service guarantee). "" = no revisit asked. */
+object RevisitStatus {
+    const val NONE = ""
+    const val REQUESTED = "REQUESTED"
+    const val DONE = "DONE"
+}
+
+/** How long after completion the customer can ask for a free revisit. */
+const val GUARANTEE_DAYS = 7
 
 /** providers/{uid} : extra details for users whose role is "provider" */
 data class Provider(
@@ -167,7 +191,30 @@ data class Booking(
     val acceptedAt: Long = 0L,
     val startedAt: Long = 0L,
     val completedAt: Long = 0L,
+    /** When the provider tapped "On my way" (0 = not yet). The status stays ACCEPTED. */
+    val onTheWayAt: Long = 0L,
+    /** Spare parts / extra work added at completion. totalAmount already includes them. */
+    val extraItems: List<ExtraItem> = emptyList(),
+    val extraAmount: Int = 0,
+    /** 7-day guarantee: "", REQUESTED or DONE, with the reason and times. */
+    val revisitStatus: String = RevisitStatus.NONE,
+    val revisitReason: String = "",
+    val revisitRequestedAt: Long = 0L,
+    val revisitDoneAt: Long = 0L,
 ) {
+    /**
+     * What the provider keeps: everything except the ₹49 visit fee,
+     * which is ServiceHub's platform fee.
+     */
+    @get:Exclude
+    val providerEarning: Int
+        get() = totalAmount - visitFee
+
+    /** True while the customer can still ask for a free revisit (completed less than 7 days ago). */
+    @get:Exclude
+    val canRequestRevisit: Boolean
+        get() = canRequestRevisitAt(this, System.currentTimeMillis())
+
     /**
      * The status as an enum, which is easier to use in code than plain text.
      * @Exclude stops Firestore from saving this as an extra field.
@@ -191,6 +238,13 @@ data class Booking(
     val isOpen: Boolean
         get() = bookingStatus.isActive && !isExpired
 }
+
+/** Completed, no revisit asked yet, and finished less than [GUARANTEE_DAYS] days before [now]. */
+fun canRequestRevisitAt(booking: Booking, now: Long): Boolean =
+    booking.bookingStatus == BookingStatus.COMPLETED &&
+        booking.revisitStatus == RevisitStatus.NONE &&
+        booking.completedAt > 0 &&
+        now - booking.completedAt <= GUARANTEE_DAYS * 24L * 60 * 60 * 1000
 
 /** ACCEPTED, and its date is before today. It stays open (the job can still happen) but is flagged. */
 fun isAcceptedOverdue(booking: Booking, today: String): Boolean =

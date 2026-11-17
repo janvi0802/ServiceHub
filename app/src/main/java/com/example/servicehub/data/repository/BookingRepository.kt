@@ -11,6 +11,10 @@ import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.PaymentStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Service
+import com.example.servicehub.data.model.ExtraItem
+import com.example.servicehub.data.model.GUARANTEE_DAYS
+import com.example.servicehub.data.model.RevisitStatus
+import com.example.servicehub.data.model.canRequestRevisitAt
 import com.example.servicehub.data.model.SlotInfo
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.model.isOffOn
@@ -232,6 +236,57 @@ object BookingRepository {
         )
     }
 
+    /**
+     * Provider taps "On my way" while ACCEPTED. The status does NOT change (the lifecycle stays the
+     * same); we only save the time, so the customer sees "Professional is on the way".
+     */
+    suspend fun markOnTheWay(bookingId: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.ACCEPTED),
+            mapOf("onTheWayAt" to System.currentTimeMillis()),
+        )
+        NotificationRepository.send(
+            b.customerId, "Professional on the way",
+            "${b.providerName} is on the way for your ${b.serviceName}. Keep your PIN ready.", b.id,
+        )
+    }
+
+    /** Customer: free revisit within 7 days of completion (service guarantee). */
+    suspend fun requestRevisit(bookingId: String, reason: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.COMPLETED),
+            mapOf(
+                "revisitStatus" to RevisitStatus.REQUESTED,
+                "revisitReason" to reason,
+                "revisitRequestedAt" to System.currentTimeMillis(),
+            ),
+            check = { booking ->
+                if (!canRequestRevisitAt(booking, System.currentTimeMillis())) {
+                    throw BookingException("A revisit can be requested once, within $GUARANTEE_DAYS days of completion.")
+                }
+            },
+        )
+        NotificationRepository.send(
+            b.providerId, "Revisit requested",
+            "${b.customerName} asked for a free revisit for ${b.serviceName}: $reason", b.id,
+        )
+    }
+
+    /** Provider: the free revisit has been done. */
+    suspend fun markRevisitDone(bookingId: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.COMPLETED),
+            mapOf("revisitStatus" to RevisitStatus.DONE, "revisitDoneAt" to System.currentTimeMillis()),
+            check = { booking ->
+                if (booking.revisitStatus != RevisitStatus.REQUESTED) throw BookingException("No revisit is waiting for this job.")
+            },
+        )
+        NotificationRepository.send(
+            b.customerId, "Revisit completed",
+            "${b.providerName} has completed the free revisit for ${b.serviceName}.", b.id,
+        )
+    }
+
     /** Provider: ACCEPTED -> IN_PROGRESS, only with the correct 4-digit PIN from the customer. */
     suspend fun startJob(bookingId: String, enteredPin: String) {
         val b = changeBooking(
@@ -326,10 +381,13 @@ object BookingRepository {
 
     /**
      * Provider: IN_PROGRESS -> COMPLETED after confirming "Payment received".
-     * In the SAME transaction we add 1 job and the amount to the provider's totals,
+     * [extras] = spare parts / extra work added now (e.g. "Tap cartridge" ₹180); they are added
+     * to the total. In the SAME transaction we add 1 job and the provider's share to their totals,
      * so the booking and the provider's earnings can never disagree.
      */
-    suspend fun complete(bookingId: String, paymentMode: String) {
+    suspend fun complete(bookingId: String, paymentMode: String, extras: List<ExtraItem> = emptyList()) {
+        val cleanExtras = validateExtras(extras)
+        val extraSum = cleanExtras.sumOf { it.amount }
         val bookingRef = bookings.document(bookingId)
         val b = db.runTransaction<Booking> { transaction ->
             // In a transaction, all reads must happen before any write.
@@ -340,6 +398,8 @@ object BookingRepository {
             }
             val providerRef = db.collection("providers").document(booking.providerId)
             val now = System.currentTimeMillis()
+            val newTotal = booking.servicePrice + booking.visitFee + extraSum
+            val updated = booking.copy(totalAmount = newTotal)
 
             transaction.update(
                 bookingRef,
@@ -347,6 +407,10 @@ object BookingRepository {
                     "status" to BookingStatus.COMPLETED.name,
                     "paymentMode" to paymentMode,
                     "paymentStatus" to PaymentStatus.PAID,
+                    // stored as simple name/amount maps (reads back as ExtraItem objects)
+                    "extraItems" to cleanExtras.map { mapOf("name" to it.name, "amount" to it.amount) },
+                    "extraAmount" to extraSum,
+                    "totalAmount" to newTotal,
                     "completedAt" to now,
                     "updatedAt" to now,
                 ),
@@ -355,16 +419,31 @@ object BookingRepository {
                 providerRef,
                 mapOf(
                     "jobsCompleted" to FieldValue.increment(1),
-                    "totalEarnings" to FieldValue.increment(booking.totalAmount.toLong()),
+                    // the provider keeps everything except the platform's visit fee
+                    "totalEarnings" to FieldValue.increment(updated.providerEarning.toLong()),
                 ),
             )
             transaction.delete(slotRef(booking))   // job finished: slot no longer busy
-            booking
+            updated
         }.await()
         NotificationRepository.send(
             b.customerId, "Job completed",
-            "${b.serviceName} is done. Paid ₹${b.totalAmount} by $paymentMode. Please rate ${b.providerName}!", b.id,
+            "${b.serviceName} is done. Paid ₹${b.totalAmount} by $paymentMode" +
+                (if (extraSum > 0) " (incl. ₹$extraSum extra parts/work)" else "") +
+                ". Please rate ${b.providerName}!",
+            b.id,
         )
+    }
+
+    /** Removes empty rows and refuses silly amounts, so a typo cannot create a huge bill. */
+    private fun validateExtras(extras: List<ExtraItem>): List<ExtraItem> {
+        val clean = extras.map { it.copy(name = it.name.trim()) }.filter { it.name.isNotEmpty() || it.amount > 0 }
+        clean.forEach {
+            if (it.name.isEmpty()) throw BookingException("Every extra item needs a name.")
+            if (it.amount !in 1..50_000) throw BookingException("Extra item amounts must be between ₹1 and ₹50,000.")
+        }
+        if (clean.size > 10) throw BookingException("Add at most 10 extra items.")
+        return clean
     }
 
     /** A message that is safe to show, looking inside wrapped errors too. */

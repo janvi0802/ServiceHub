@@ -37,6 +37,21 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.servicehub.data.FixedData
+import com.example.servicehub.data.model.ExtraItem
+import com.example.servicehub.data.model.RevisitStatus
+import com.example.servicehub.ui.components.Caption
+import com.example.servicehub.ui.components.InfoBanner
+import com.example.servicehub.ui.components.InfoRow
+import com.example.servicehub.ui.theme.StatusAccepted
+import com.example.servicehub.ui.theme.StatusCompleted
+import com.example.servicehub.ui.theme.StatusRequested
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.mutableStateListOf
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.ui.booking.BookingDetailViewModel
@@ -135,6 +150,24 @@ fun JobDetailScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    // Step 1: tell the customer you are coming
+                    if (booking.onTheWayAt == 0L) {
+                        OutlinedButton(
+                            onClick = viewModel::markOnTheWay,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                        ) {
+                            Icon(Icons.Filled.DirectionsRun, contentDescription = null)
+                            Text("  I'm on my way")
+                        }
+                    } else {
+                        InfoBanner(
+                            Icons.Filled.DirectionsRun,
+                            "Customer was told you are on the way (${DateUtils.dateTime(booking.onTheWayAt).substringAfter(", ")}).",
+                            StatusAccepted,
+                        )
+                    }
+                    // Step 2: start with the PIN
                     Text("Start the job", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Ask the customer for their 4-digit PIN when you arrive.", style = MaterialTheme.typography.bodySmall)
                     TextInput(
@@ -161,10 +194,27 @@ fun JobDetailScreen(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                 ) { Text("Complete job • collect ${rupees(booking.totalAmount)}") }
 
-                status == BookingStatus.COMPLETED -> OutlinedButton(
-                    onClick = { onReceipt(booking.id) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("View receipt") }
+                status == BookingStatus.COMPLETED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 7-day guarantee: the customer asked for a free revisit
+                    if (booking.revisitStatus == RevisitStatus.REQUESTED) {
+                        InfoBanner(
+                            Icons.Filled.Replay,
+                            "Free revisit requested: \"${booking.revisitReason}\". Call the customer and fix it.",
+                            StatusRequested,
+                        )
+                        Button(
+                            onClick = viewModel::markRevisitDone,
+                            enabled = !isBusy,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                        ) { Text("Mark revisit done") }
+                    } else if (booking.revisitStatus == RevisitStatus.DONE) {
+                        InfoBanner(Icons.Filled.TaskAlt, "Free revisit completed.", StatusCompleted)
+                    }
+                    OutlinedButton(
+                        onClick = { onReceipt(booking.id) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("View receipt") }
+                }
 
                 else -> Unit   // rejected / cancelled jobs have no actions
             }
@@ -221,9 +271,9 @@ fun JobDetailScreen(
         if (showComplete) {
             CompleteJobDialog(
                 booking = booking,
-                onConfirm = { mode ->
+                onConfirm = { mode, extras ->
                     showComplete = false
-                    viewModel.complete(mode) {}
+                    viewModel.complete(mode, extras) {}
                 },
                 onDismiss = { showComplete = false },
             )
@@ -231,18 +281,51 @@ fun JobDetailScreen(
     }
 }
 
-/** Confirms the payment mode and that the money was received, before completing. */
+/**
+ * Before completing: optional extra items (spare parts / extra work), payment mode,
+ * and "Payment received". The amount to collect updates as items are added.
+ */
 @Composable
-private fun CompleteJobDialog(booking: Booking, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraItem>) -> Unit, onDismiss: () -> Unit) {
     var mode by remember { mutableStateOf(booking.paymentMode.ifBlank { FixedData.paymentModes.first() }) }
     var received by remember { mutableStateOf(false) }
+    // Each row: name + amount typed as text (turned into numbers when saving)
+    val names = remember { mutableStateListOf<String>() }
+    val amounts = remember { mutableStateListOf<String>() }
+    val extraSum = amounts.sumOf { it.toIntOrNull() ?: 0 }
+    val rowsValid = names.indices.all { i ->
+        (names[i].isBlank() && amounts[i].isBlank()) ||
+            (names[i].isNotBlank() && (amounts[i].toIntOrNull() ?: 0) in 1..50_000)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Complete job") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Amount to collect: ${rupees(booking.totalAmount)}", fontWeight = FontWeight.Bold)
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoRow("Service + visit fee", rupees(booking.servicePrice + booking.visitFee))
+                Text("Extra parts or work (optional)", style = MaterialTheme.typography.titleSmall)
+                names.indices.forEach { i ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        TextInput(names[i], { names[i] = it.take(30) }, "Item", modifier = Modifier.weight(1.4f))
+                        TextInput(
+                            amounts[i], { amounts[i] = it.filter(Char::isDigit).take(5) }, "₹",
+                            keyboardType = KeyboardType.Number, modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { names.removeAt(i); amounts.removeAt(i) }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Remove item")
+                        }
+                    }
+                }
+                if (names.size < 10) {
+                    TextButton(onClick = { names.add(""); amounts.add("") }) { Text("+ Add item (e.g. tap cartridge)") }
+                }
+                if (!rowsValid) Caption("Each item needs a name and an amount from ₹1 to ₹50,000.", color = MaterialTheme.colorScheme.error)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Text(
+                    "Amount to collect: ${rupees(booking.servicePrice + booking.visitFee + extraSum)}",
+                    fontWeight = FontWeight.Bold,
+                )
                 Text("Paid by")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FixedData.paymentModes.forEach { m ->
@@ -256,7 +339,15 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (String) -> Unit, onD
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(mode) }, enabled = received) { Text("Complete") }
+            TextButton(
+                onClick = {
+                    val extras = names.indices
+                        .filter { names[it].isNotBlank() }
+                        .map { ExtraItem(names[it].trim(), amounts[it].toIntOrNull() ?: 0) }
+                    onConfirm(mode, extras)
+                },
+                enabled = received && rowsValid,
+            ) { Text("Complete") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
     )

@@ -16,6 +16,7 @@ import com.example.servicehub.data.model.isAcceptedOverdue
 import com.example.servicehub.data.model.isTopRated
 import com.example.servicehub.data.model.isOffOn
 import com.example.servicehub.data.model.nextWorkingDay
+import com.example.servicehub.data.model.canRequestRevisitAt
 import com.example.servicehub.ui.common.notificationStyle
 import com.example.servicehub.ui.customer.MyBookingsViewModel
 import com.example.servicehub.ui.theme.StatusAccepted
@@ -482,6 +483,39 @@ class LogicTest {
         assertEquals(StatusRejected, notificationStyle("Account not approved").second)
         assertEquals(StatusAccepted, notificationStyle("Account approved").second)
         assertEquals(StatusCompleted, notificationStyle("Job completed").second)
+    }
+
+    // ------------------------------------------------ guarantee, extras, earnings split
+
+    @Test
+    fun revisit_onlyOnceWithinSevenDaysOfCompletion() {
+        val day = 24L * 60 * 60 * 1000
+        val done = Booking(status = "COMPLETED", completedAt = 1_000_000L)
+        assertTrue(canRequestRevisitAt(done, 1_000_000L + 6 * day))                       // day 6: allowed
+        assertFalse(canRequestRevisitAt(done, 1_000_000L + 8 * day))                      // day 8: too late
+        assertFalse(canRequestRevisitAt(done.copy(revisitStatus = "REQUESTED"), 1_000_000L))   // only once
+        assertFalse(canRequestRevisitAt(Booking(status = "ACCEPTED", completedAt = 1), 2))      // not completed
+    }
+
+    @Test
+    fun earnings_visitFeeGoesToPlatform() {
+        // Tap repair 149 + visit 49 + a part 180 = 378 paid by the customer
+        val b = Booking(status = "COMPLETED", servicePrice = 149, visitFee = 49, extraAmount = 180, totalAmount = 378)
+        assertEquals(329, b.providerEarning)                     // provider keeps service + part
+        val stats = DashboardStats.from(emptyList(), emptyList(), listOf(b))
+        assertEquals(49, stats.platformEarnings)
+        assertEquals(329, stats.providerEarnings)
+        assertEquals(378, stats.completedValue)
+    }
+
+    @Test
+    fun providerJobs_revisitsListed() {
+        val list = listOf(
+            Booking(id = "r", status = "COMPLETED", revisitStatus = "REQUESTED"),
+            Booking(id = "d", status = "COMPLETED", revisitStatus = "DONE"),
+            Booking(id = "n", status = "COMPLETED"),
+        )
+        assertEquals(listOf("r"), ProviderJobsViewModel.revisits(list).map { it.id })
     }
 
     @Test

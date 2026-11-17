@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.Complaint
+import com.example.servicehub.data.model.ExtraItem
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.repository.ProviderRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,6 +115,14 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun cancelByProvider(reason: String) =
         run("Job cancelled. The customer has been told.") { BookingRepository.cancelByProvider(bookingId, reason) }
 
-    fun complete(paymentMode: String, onDone: () -> Unit) =
-        run("Job completed. Payment recorded.", onDone) { BookingRepository.complete(bookingId, paymentMode) }
+    fun complete(paymentMode: String, extras: List<ExtraItem>, onDone: () -> Unit) =
+        run("Job completed. Payment recorded.", onDone) { BookingRepository.complete(bookingId, paymentMode, extras) }
+
+    fun markOnTheWay() = run("Customer told you are on the way.") { BookingRepository.markOnTheWay(bookingId) }
+
+    fun markRevisitDone() = run("Revisit marked as done.") { BookingRepository.markRevisitDone(bookingId) }
+
+    // ---- customer: 7-day guarantee
+    fun requestRevisit(reason: String) =
+        run("Revisit requested. The professional will contact you.") { BookingRepository.requestRevisit(bookingId, reason) }
 }

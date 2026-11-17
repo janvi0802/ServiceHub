@@ -98,7 +98,8 @@ fun ReceiptScreen(
                 InfoRow("Completed", DateUtils.dateTime(b.completedAt))
                 HorizontalDivider(Modifier.padding(vertical = 10.dp))
                 InfoRow("Service price", rupees(b.servicePrice))
-                InfoRow("Visit fee", rupees(b.visitFee))
+                b.extraItems.forEach { InfoRow(it.name, rupees(it.amount)) }   // spare parts / extra work
+                InfoRow("Visit fee (ServiceHub)", rupees(b.visitFee))
                 HorizontalDivider(Modifier.padding(vertical = 6.dp))
                 InfoRow("Total paid", rupees(b.totalAmount), bold = true)
                 InfoRow("Payment mode", b.paymentMode)

@@ -119,6 +119,13 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   search, trust strip, How it works, Quick picks, Book again), Provider Home (orange header,
   Next job with Call/Maps, This-week bar chart), requests badge on Jobs tab, brand logo on Login.
   Rules changed (categories) — publish again.
+- Real-world flows round: "I'm on my way" (bookings.onTheWayAt, no status change, customer
+  banner + notification + timeline), extra parts/work at completion (bookings.extraItems /
+  extraAmount, total recalculated, itemized booking/receipt/share), 7-day service guarantee
+  (revisitStatus REQUESTED/DONE, customer "Free revisit", provider "Free revisits" section +
+  badge, admin attention item), multiple saved addresses (users.savedAddresses, Profile section,
+  one-tap chips in booking form), earnings split (visit fee = platform income; provider earnings
+  = total − visit fee; admin "Earnings split" card). Rules updated (savedAddresses) — publish again.
 - Design round (17 Nov): new design system (refined palette, typography, shapes, white cards on
   grey, soft status pills, icon tiles, section headers, fixed bottom action bars, helpful empty
   states with actions) — no emoji decoration anywhere. Redesigned: booking cards, provider profile
