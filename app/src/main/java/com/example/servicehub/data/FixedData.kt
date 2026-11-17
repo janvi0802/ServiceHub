@@ -65,6 +65,9 @@ object FixedData {
     /** Fixed visit charge added to every booking, in rupees. */
     const val VISIT_FEE = 49
 
+    /** Shown under prices so nobody is surprised at the door. */
+    const val PRICE_NOTE = "Price covers labour. Spare parts, if needed, are paid separately to the provider after you agree."
+
     /** Finds a category by its id, e.g. "plumber". Returns null if not found. */
     fun categoryById(id: String): Category? = categories.firstOrNull { it.id == id }
 }

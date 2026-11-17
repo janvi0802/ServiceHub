@@ -44,6 +44,7 @@ erDiagram
     SERVICES ||--o{ BOOKINGS : "serviceId"
     BOOKINGS ||--o| REVIEWS : "review id = booking id"
     BOOKINGS ||--o| SLOTS : "active booking holds one slot"
+    BOOKINGS ||--o{ COMPLAINTS : "reported problems"
     PROVIDERS ||--o{ REVIEWS : "providerId"
     USERS ||--o{ NOTIFICATIONS : "userId"
 
@@ -110,6 +111,14 @@ erDiagram
         string message
         string bookingId
         bool isRead
+    }
+    COMPLAINTS {
+        string id PK
+        string bookingId FK
+        string customerId FK
+        string providerId FK
+        string message
+        string status "OPEN | RESOLVED"
     }
     SLOTS {
         string id PK "providerId_date_slotNumber"
@@ -247,8 +256,22 @@ Take these on a real phone (Power + Volume down):
   one review per completed booking.
 - **Fair handling of no-shows:** unanswered requests expire automatically, late jobs show as
   "Overdue", and either side can cancel with a reason that the other side sees.
-- **Transparent prices:** fixed service price + ₹49 visit fee shown before booking, receipt
-  after, shareable on WhatsApp/SMS.
+- **Transparent prices:** fixed service price + ₹49 visit fee shown before booking, a clear
+  "spare parts are extra" note, receipt after, shareable on WhatsApp/SMS.
+- **No trial and error:** taken slots and the provider's weekly days off are greyed out before
+  the customer chooses; "⚡ Available today" finds someone for urgent jobs.
+- **Weekly days off designed for urgency:** a day off belongs to one provider and only blocks
+  NEW bookings; other providers stay bookable, and existing jobs are never cancelled silently.
+- **Complaints with admin follow-up:** customers can report a problem on any booking; the admin
+  calls both sides, marks it resolved, and the customer is notified.
+
+## 8c. User analysis: why people would (and would not) use it
+
+| Person | Why they would use it | Why they might not (and future fix) |
+|---|---|---|
+| Customer | Fixed prices, verified providers, PIN safety, live timeline, free-slot view, receipts, complaints | Must register before browsing; alerts only inside the app (push = future) |
+| Provider | Free customers in their area, rating builds reputation, earnings, days off, Open in Maps | Can miss requests when the app is closed (push = future); prices are set by the platform |
+| Admin | Approvals, blocking, prices and new services, complaints, live dashboard and top providers | No ID document checks (photo upload = future) |
 
 ## 9. Likely viva questions (25) with short answers
 
@@ -274,6 +297,6 @@ Take these on a real phone (Power + Volume down):
 20. **What happens when the admin blocks a user?** `isBlocked = true`: they are logged out immediately (the app listens to their own document), cannot log in again, blocked providers are hidden, and security rules refuse their writes.
 21. **What do your security rules do?** Users edit only their own profile (never role or blocked status), only admin approves, blocks and edits services, bookings are readable and changeable only by their own customer, provider or admin, reviews are once and cannot be edited, notifications are private, blocked users cannot write.
 22. **Why store customer and provider names inside the booking?** So a booking and receipt always show correct details without extra reads, even if someone changes their profile later (denormalization).
-23. **How did you test the app?** 26 automatic logic tests (JUnit), Android lint (0 errors), a release build check, and a 58-case manual test script on two real phones.
+23. **How did you test the app?** 29 automatic logic tests (JUnit), Android lint (0 errors), a release build check, and a 70-case manual test script on two real phones.
 24. **What are the limitations?** No online payment, no push notifications, no GPS, no photos; business rules are checked in the app and by security rules, but there is no server code (Cloud Functions need the paid plan).
 25. **What would you add next?** Push notifications, UPI payment, chat, maps, provider ID verification, and Cloud Functions for server-side checks.

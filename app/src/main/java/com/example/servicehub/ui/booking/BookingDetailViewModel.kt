@@ -4,7 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.servicehub.data.model.Booking
+import com.example.servicehub.data.model.Complaint
+import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.BookingRepository
+import com.example.servicehub.data.repository.ComplaintRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +34,12 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         .map { if (it == null) BookingLoad.NotFound else BookingLoad.Loaded(it) }
         .catch { emit(BookingLoad.NotFound) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BookingLoad.Loading)
+
+    /** Problems the logged-in customer reported about this booking (only listened to on the customer screen). */
+    val myComplaints: StateFlow<List<Complaint>> =
+        ComplaintRepository.forBooking(AuthRepository.currentUserId.orEmpty(), bookingId)
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** True while an action is being saved (buttons are disabled). */
     val isBusy = MutableStateFlow(false)
@@ -69,6 +78,9 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         run("Rescheduled. Waiting for the provider to confirm.", onDone) {
             BookingRepository.reschedule(current, date, slot)
         }
+
+    fun reportProblem(booking: Booking, message: String) =
+        run("Thanks. The admin will look into it.") { ComplaintRepository.report(booking, message) }
 
     // ---- provider actions
     fun accept() = run("Job accepted.") { BookingRepository.accept(bookingId) }

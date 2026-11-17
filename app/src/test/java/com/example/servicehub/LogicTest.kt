@@ -12,6 +12,8 @@ import com.example.servicehub.data.model.User
 import com.example.servicehub.data.model.isRequestExpired
 import com.example.servicehub.data.model.isAcceptedOverdue
 import com.example.servicehub.data.model.isTopRated
+import com.example.servicehub.data.model.isOffOn
+import com.example.servicehub.ui.admin.userMatches
 import com.example.servicehub.ui.components.avatarColorIndex
 import com.example.servicehub.ui.components.receiptShareText
 import com.example.servicehub.ui.components.timelineSteps
@@ -331,6 +333,35 @@ class LogicTest {
         assertTrue(text.contains("ABCDEFGH"))
         assertTrue(text.contains("Tap repair"))
         assertTrue(text.contains("₹198 by UPI"))
+    }
+
+    // ------------------------------------------------ weekly days off
+
+    @Test
+    fun weekdays_readCorrectlyFromDates() {
+        assertEquals(1, DateUtils.weekdayOf("2026-11-22"))   // Sunday
+        assertEquals(2, DateUtils.weekdayOf("2026-11-23"))   // Monday
+        assertEquals(7, DateUtils.weekdayOf("2026-11-28"))   // Saturday
+        assertEquals(0, DateUtils.weekdayOf("not a date"))
+        assertEquals("Sun, Sat", DateUtils.weekdayNames(listOf(7, 1)))
+    }
+
+    @Test
+    fun daysOff_blockOnlyThatWeekday() {
+        val sundayOff = Provider(offDays = listOf(1))
+        assertTrue(isOffOn(sundayOff, "2026-11-22"))          // Sunday
+        assertFalse(isOffOn(sundayOff, "2026-11-23"))         // Monday
+        assertFalse(isOffOn(Provider(), "2026-11-22"))        // no days off -> always working
+    }
+
+    @Test
+    fun adminUserSearch_matchesNameEmailOrPhone() {
+        val u = User(name = "Priya Sharma", email = "priya@test.com", phone = "9876543210")
+        assertTrue(userMatches(u, ""))
+        assertTrue(userMatches(u, "priya"))
+        assertTrue(userMatches(u, "TEST.COM"))
+        assertTrue(userMatches(u, "98765"))
+        assertFalse(userMatches(u, "ramesh"))
     }
 
     @Test

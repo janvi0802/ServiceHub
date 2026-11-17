@@ -72,6 +72,43 @@ data class Provider(
     val jobsCompleted: Int = 0,
     val totalEarnings: Int = 0,
     val createdAt: Long = 0L,
+    /** Weekly days off, as Calendar day numbers: 1 = Sunday, 2 = Monday ... 7 = Saturday. */
+    val offDays: List<Int> = emptyList(),
+)
+
+/** True if the provider has a weekly day off on this date ("yyyy-MM-dd"). */
+fun isOffOn(provider: Provider, date: String): Boolean = DateUtils.weekdayOf(date) in provider.offDays
+
+/** slots/{providerId_date_slotNumber} : marks one provider slot as busy (no personal details). */
+data class SlotInfo(
+    val providerId: String = "",
+    val customerId: String = "",
+    val bookingId: String = "",
+    val date: String = "",
+    val timeSlot: String = "",
+)
+
+/** Values for Complaint.status */
+object ComplaintStatus {
+    const val OPEN = "OPEN"
+    const val RESOLVED = "RESOLVED"
+}
+
+/** complaints/{id} : a problem a customer reported about a booking, handled by the admin. */
+data class Complaint(
+    val id: String = "",
+    val bookingId: String = "",
+    val customerId: String = "",
+    val customerName: String = "",
+    val customerPhone: String = "",
+    val providerId: String = "",
+    val providerName: String = "",
+    val providerPhone: String = "",
+    val serviceName: String = "",
+    val message: String = "",
+    val status: String = ComplaintStatus.OPEN,
+    val createdAt: Long = 0L,
+    val resolvedAt: Long = 0L,
 )
 
 /** "Top rated" badge: at least 4.5 stars from at least 3 reviews (so one lucky 5★ is not enough). */

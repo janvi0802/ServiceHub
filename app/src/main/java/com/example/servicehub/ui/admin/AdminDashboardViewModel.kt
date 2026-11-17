@@ -8,7 +8,10 @@ import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.User
+import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.AdminRepository
+import com.example.servicehub.data.repository.ComplaintRepository
+import kotlinx.coroutines.flow.map
 import com.example.servicehub.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,6 +74,12 @@ class AdminDashboardViewModel : ViewModel() {
         }
             .catch { emit(DashboardStats()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** Live number of complaints the admin has not resolved yet. */
+    val openComplaints: StateFlow<Int> = ComplaintRepository.all()
+        .map { list -> list.count { it.status == ComplaintStatus.OPEN } }
+        .catch { emit(0) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     private val _sampleState = MutableStateFlow(SampleDataState())
     val sampleState: StateFlow<SampleDataState> = _sampleState

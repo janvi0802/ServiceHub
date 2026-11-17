@@ -40,6 +40,7 @@ object Routes {
     const val ADMIN_USERS = "admin_users"
     const val ADMIN_SERVICES = "admin_services"
     const val ADMIN_BOOKINGS = "admin_bookings"
+    const val ADMIN_COMPLAINTS = "admin_complaints"
 
     // Helpers that fill in the {values}, so we never type a route by hand.
     fun categoryServices(categoryId: String) = "category_services/$categoryId"

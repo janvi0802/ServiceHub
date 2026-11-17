@@ -95,6 +95,13 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   badges, friendlier empty screens, booking timeline with times, share booking/receipt,
   provider sorting, search by category, new-review notification, admin top providers.
   26 logic tests, lint 0 errors, release build OK. Test script now 58 cases.
+- User-analysis round: weekly days off (providers.offDays; only blocks NEW bookings; checked on
+  booking and reschedule; "Off today" label + "⚡ Available today" filter), taken slots greyed
+  out live in the booking form, provider list starts in the customer's own area with
+  "Show all providers", "spare parts extra" price note, Open in Maps (geo: link, no API key),
+  Report a problem (complaints collection) + admin Complaints screen with call buttons and
+  Mark resolved (customer notified), admin Add service, admin user search.
+  29 logic tests. Rules updated (offDays, complaints) — must be published again.
 
 ## Next step
 

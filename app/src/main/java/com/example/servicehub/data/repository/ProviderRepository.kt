@@ -55,6 +55,14 @@ object ProviderRepository {
             .liveList(Review::class.java)
             .map { list -> list.sortedByDescending { it.createdAt } }
 
+    /**
+     * Provider's weekly days off (1 = Sunday ... 7 = Saturday).
+     * Only NEW bookings on those days are blocked; jobs already booked stay as they are.
+     */
+    suspend fun setOffDays(providerId: String, days: List<Int>) {
+        providers.document(providerId).update("offDays", days.distinct().sorted()).await()
+    }
+
     /** Provider switches Available / Not available. Unavailable providers are hidden from customers. */
     suspend fun setAvailability(providerId: String, available: Boolean) {
         providers.document(providerId).update("isAvailable", available).await()

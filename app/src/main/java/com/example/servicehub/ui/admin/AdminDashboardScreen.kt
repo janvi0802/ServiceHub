@@ -41,10 +41,12 @@ fun AdminDashboardScreen(
     onOpenAllProviders: () -> Unit,
     onOpenUsers: () -> Unit,
     onOpenBookings: () -> Unit,
+    onOpenComplaints: () -> Unit,
     onLoggedOut: () -> Unit,
     viewModel: AdminDashboardViewModel = viewModel(),
 ) {
     val stats by viewModel.stats.collectAsState()
+    val openComplaints by viewModel.openComplaints.collectAsState()
     val sample by viewModel.sampleState.collectAsState()
 
     Column(
@@ -87,6 +89,7 @@ fun AdminDashboardScreen(
                 CountCard("Total bookings", s.totalBookings.toString(), Modifier.weight(1f), onOpenBookings)
                 CountCard("Completed value", rupees(s.completedValue), Modifier.weight(1f), onOpenBookings)
             }
+            CountCard("Open complaints", openComplaints.toString(), Modifier.fillMaxWidth(), onOpenComplaints)
 
             // Bookings by status
             Card(Modifier.fillMaxWidth().clickable(onClick = onOpenBookings)) {

@@ -55,6 +55,19 @@ object DateUtils {
         return SimpleDateFormat("d MMM yyyy, h:mm a", Locale.ENGLISH).format(Date(millis))
     }
 
+    /** Day names in Calendar order (index 0 = Sunday = Calendar day 1). */
+    val weekdayShortNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+
+    /** "2026-11-22" -> Calendar day number (1 = Sunday ... 7 = Saturday). 0 if the text is not a date. */
+    fun weekdayOf(date: String): Int {
+        val parsed = runCatching { storageFormat().parse(date) }.getOrNull() ?: return 0
+        return Calendar.getInstance().apply { time = parsed }.get(Calendar.DAY_OF_WEEK)
+    }
+
+    /** [7, 1] -> "Sun, Sat" (sorted in Calendar order). */
+    fun weekdayNames(days: List<Int>): String =
+        days.sorted().mapNotNull { weekdayShortNames.getOrNull(it - 1) }.joinToString(", ")
+
     /** True if [millis] is a moment during today. */
     fun isToday(millis: Long): Boolean =
         millis != 0L && storageFormat().format(Date(millis)) == today()

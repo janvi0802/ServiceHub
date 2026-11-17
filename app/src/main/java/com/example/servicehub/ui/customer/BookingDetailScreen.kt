@@ -43,7 +43,9 @@ import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
+import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.PROVIDER_CANCEL_PREFIX
+import com.example.servicehub.ui.theme.StatusCompleted
 import com.example.servicehub.ui.booking.BookingDetailViewModel
 import com.example.servicehub.ui.booking.BookingInfoCard
 import com.example.servicehub.ui.booking.BookingLoad
@@ -73,6 +75,8 @@ fun BookingDetailScreen(
 
     var showCancel by rememberSaveable { mutableStateOf(false) }
     var showReschedule by rememberSaveable { mutableStateOf(false) }
+    var showReport by rememberSaveable { mutableStateOf(false) }
+    val complaints by viewModel.myComplaints.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
         val loadedBooking = (load as? BookingLoad.Loaded)?.booking
@@ -164,9 +168,37 @@ fun BookingDetailScreen(
                 ) { Text("Book again") }
             }
 
+            // Report a problem: shows the latest report's status, or the button
+            val latest = complaints.firstOrNull()
+            if (latest != null) {
+                val resolved = latest.status == ComplaintStatus.RESOLVED
+                Text(
+                    if (resolved) "✔ Your reported problem was resolved by the admin."
+                    else "⏳ Problem reported on ${DateUtils.dateTime(latest.createdAt)}. The admin will contact you.",
+                    color = if (resolved) StatusCompleted else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (latest == null || latest.status == ComplaintStatus.RESOLVED) {
+                TextButton(onClick = { viewModel.clearMessage(); showReport = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Report a problem with this booking")
+                }
+            }
+
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         }
 
+        if (showReport) {
+            ReasonDialog(
+                title = "Report a problem",
+                confirmText = "Send to admin",
+                onConfirm = { text ->
+                    showReport = false
+                    viewModel.reportProblem(booking, text)
+                },
+                onDismiss = { showReport = false },
+            )
+        }
         if (showCancel) {
             ReasonDialog(
                 title = "Cancel this booking?",

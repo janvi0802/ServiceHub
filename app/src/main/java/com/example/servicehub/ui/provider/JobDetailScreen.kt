@@ -11,6 +11,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Map
+import com.example.servicehub.ui.components.openMaps
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -92,9 +94,15 @@ fun JobDetailScreen(
             TimelineCard(booking)
 
             if (status.isActive) {
-                OutlinedButton(onClick = { openDialer(context, booking.customerPhone) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Filled.Call, contentDescription = null)
-                    Text("  Call customer")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { openDialer(context, booking.customerPhone) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Call, contentDescription = null)
+                        Text("  Call")
+                    }
+                    OutlinedButton(onClick = { openMaps(context, booking.address) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Map, contentDescription = null)
+                        Text("  Open in Maps")
+                    }
                 }
             }
 

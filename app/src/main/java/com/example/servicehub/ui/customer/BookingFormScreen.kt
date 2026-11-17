@@ -43,8 +43,16 @@ import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ScreenHeader
 import com.example.servicehub.ui.components.TextInput
 import com.example.servicehub.ui.components.rupees
+import com.example.servicehub.data.model.isOffOn
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -71,6 +79,18 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     private val _uiState = MutableStateFlow(BookingFormUiState())
     val uiState: StateFlow<BookingFormUiState> = _uiState
 
+    /**
+     * Slots this provider already has booked on the chosen date (live).
+     * flatMapLatest: whenever the date changes, stop listening to the old date and listen to the new one.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val busySlots: StateFlow<Set<String>> = _uiState
+        .map { it.date }
+        .distinctUntilChanged()
+        .flatMapLatest { date -> BookingRepository.busySlots(providerId, date) }
+        .catch { emit(emptySet()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     init { load() }
 
     /** Loads the customer (for the saved address), the provider and the service. */
@@ -81,8 +101,13 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             val provider = UserRepository.getProvider(providerId)
             val service = ServiceRepository.getService(serviceId)
             if (customer == null || provider == null || service == null) throw Exception("Could not load booking details.")
+            // Start on the first day the provider works (skip their weekly days off).
+            val firstWorkingDay = DateUtils.nextDays(7).firstOrNull { !isOffOn(provider, it) } ?: DateUtils.today()
             _uiState.update {
-                it.copy(customer = customer, provider = provider, service = service, address = customer.address)
+                it.copy(
+                    customer = customer, provider = provider, service = service,
+                    address = customer.address, date = firstWorkingDay,
+                )
             }
         } catch (e: Exception) {
             _uiState.update { it.copy(loadError = e.message ?: "Could not load. Check internet.") }
@@ -111,8 +136,10 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         val service = s.service ?: return
 
         val problem = when {
+            isOffOn(provider, s.date) -> "${provider.name} is off on this day. Please choose another date."
             s.timeSlot.isBlank() -> "Please choose a time slot."
             isSlotDisabled(s.date, s.timeSlot) -> "This slot is already over today. Please choose another."
+            s.timeSlot in busySlots.value -> "This slot was just booked by someone else. Please choose another."
             s.address.isBlank() -> "Please enter the address."
             else -> null
         }
@@ -145,6 +172,7 @@ fun BookingFormScreen(
     viewModel: BookingFormViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
+    val busy by viewModel.busySlots.collectAsState()
 
     LaunchedEffect(state.createdBookingId) {
         state.createdBookingId?.let(onBooked)
@@ -172,22 +200,31 @@ fun BookingFormScreen(
             SectionTitle("Date")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DateUtils.nextDays(7).forEach { date ->
+                    val off = isOffOn(provider, date)
                     FilterChip(
                         selected = date == state.date,
                         onClick = { viewModel.onDateChange(date) },
-                        label = { Text(DateUtils.chipLabel(date)) },
+                        enabled = !off,   // provider's weekly day off
+                        label = { Text(if (off) "${DateUtils.chipLabel(date)} · off" else DateUtils.chipLabel(date)) },
                     )
                 }
+            }
+            if (provider.offDays.isNotEmpty()) {
+                Text(
+                    "${provider.name} is off every ${DateUtils.weekdayNames(provider.offDays)}. Need help that day? Choose another provider.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
 
             SectionTitle("Time slot")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FixedData.timeSlots.forEach { slot ->
+                    val taken = slot in busy
                     FilterChip(
-                        selected = slot == state.timeSlot,
+                        selected = slot == state.timeSlot && !taken,
                         onClick = { viewModel.onSlotChange(slot) },
-                        enabled = !viewModel.isSlotDisabled(state.date, slot),
-                        label = { Text(slot) },
+                        enabled = !taken && !viewModel.isSlotDisabled(state.date, slot),
+                        label = { Text(if (taken) "$slot · Booked" else slot) },
                     )
                 }
             }
@@ -217,6 +254,7 @@ fun BookingFormScreen(
                     InfoRow("Visit fee", rupees(FixedData.VISIT_FEE))
                     HorizontalDivider(Modifier.padding(vertical = 6.dp))
                     InfoRow("Total", rupees(service.price + FixedData.VISIT_FEE), bold = true)
+                    Text(FixedData.PRICE_NOTE, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
                 }
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

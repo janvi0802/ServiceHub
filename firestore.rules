@@ -81,7 +81,7 @@ service cloud.firestore {
         // when they complete a job. NOT approvalStatus (only the admin approves).
         || (active() && request.auth.uid == uid
             && onlyChanges(['name', 'phone', 'area', 'bio', 'experienceYears',
-                            'isAvailable', 'jobsCompleted', 'totalEarnings']))
+                            'isAvailable', 'offDays', 'jobsCompleted', 'totalEarnings']))
         // A customer leaving a review may change only the rating fields.
         || (active() && onlyChanges(['ratingAvg', 'ratingCount']));
 
@@ -158,6 +158,24 @@ service cloud.firestore {
 
       // Reviews cannot be edited or deleted.
       allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------ complaints ("Report a problem")
+
+    match /complaints/{complaintId} {
+      // The customer who reported it, or the admin.
+      allow read: if signedIn() && (resource.data.customerId == request.auth.uid || isAdmin());
+
+      // A customer reports a problem about their OWN booking, always starting as OPEN.
+      allow create: if active()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'OPEN'
+        && get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customerId
+             == request.auth.uid;
+
+      // Only the admin marks it resolved. Nobody deletes complaints.
+      allow update: if isAdmin();
+      allow delete: if false;
     }
 
     // ------------------------------------------------------------ notifications

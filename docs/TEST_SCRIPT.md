@@ -74,6 +74,18 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC56 | Review alert | Customer rates a job | Provider gets "New review ★★★★" notification | |
 | TC57 | Overdue | Accepted job from a past day, not started | Orange "Overdue" chip and message on both sides | |
 | TC58 | Admin insights | Admin dashboard | "Expired" count row and "Top providers" list | |
+| TC59 | Days off | Provider Home → tick **Sun** | Saves at once; provider detail shows "Weekly off: Sun" | |
+| TC60 | Days off in form | Customer books that provider | Sunday chip shows "· off" and is disabled; form starts on the first working day | |
+| TC61 | Off today | On the provider's day off, open the provider list | "Off today" label; "⚡ Available today" chip hides them | |
+| TC62 | Existing job stays | Provider has a Sunday job, then ticks Sun | The existing job is still there (only new bookings are blocked) | |
+| TC63 | Busy slots | Customer A books Morning; customer B opens the same provider and date | Morning shows "· Booked" and cannot be chosen | |
+| TC64 | Own area first | Customer with area Satellite opens a provider list | "Satellite" chip is pre-selected; if empty, "Show all providers" button works | |
+| TC65 | Price note | Category services and booking summary | "Price covers labour. Spare parts..." note visible | |
+| TC66 | Open in Maps | Provider → active job → Open in Maps | Google Maps opens searching the customer's address | |
+| TC67 | Report a problem | Customer → booking → "Report a problem" → text → Send | "Problem reported..." shown; admin dashboard Open complaints = 1 | |
+| TC68 | Resolve | Admin → Open complaints → Call buttons, Mark resolved | Complaint moves to Resolved; customer gets a notification and sees "resolved" | |
+| TC69 | Add service | Admin → Services → + Add (e.g. Geyser repair, ₹399, 60 min) | Appears for customers in that category and in search | |
+| TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)
 
@@ -81,11 +93,11 @@ Mark each row ✅ or ❌ and note what you saw.
 gradlew.bat testDebugUnitTest
 ```
 
-26 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
+29 logic tests in `app/src/test/java/com/example/servicehub/LogicTest.kt`: status rules,
 dates and slots, price total, sample data completeness, provider job lists and earnings,
 rating average, admin dashboard counts and top providers, busy-slot ids, expired and overdue
 bookings, top-rated badge, avatar colours, provider sorting, timeline, next booking and rate
-reminder, "from ₹" prices, search, receipt text.
+reminder, "from ₹" prices, search, receipt text, weekdays and days off, admin user search.
 
 ## Make a signed release APK (to share or install without Android Studio)
 

@@ -11,7 +11,9 @@ import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.PaymentStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Service
+import com.example.servicehub.data.model.SlotInfo
 import com.example.servicehub.data.model.User
+import com.example.servicehub.data.model.isOffOn
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
@@ -78,6 +80,16 @@ object BookingRepository {
             .liveList(Booking::class.java)
             .map { list -> list.sortedByDescending { it.createdAt } }
 
+    /**
+     * Live set of a provider's busy slots on one date, e.g. {"Morning (9 AM – 12 PM)"}.
+     * The booking form greys these out, so the customer never picks a taken slot.
+     */
+    fun busySlots(providerId: String, date: String): Flow<Set<String>> =
+        slots.whereEqualTo("providerId", providerId)
+            .whereEqualTo("date", date)
+            .liveList(SlotInfo::class.java)
+            .map { list -> list.map { it.timeSlot }.toSet() }
+
     /** One booking, live. Both phones see every status change instantly. */
     fun liveBooking(bookingId: String): Flow<Booking?> =
         bookings.document(bookingId).liveObject(Booking::class.java)
@@ -108,6 +120,12 @@ object BookingRepository {
             UserRepository.getUser(provider.id)?.isBlocked == true
         ) {
             throw BookingException("${provider.name} is not available for booking right now. Please choose another provider.")
+        }
+        if (isOffOn(latestProvider, date)) {
+            throw BookingException(
+                "${provider.name} is off on that day (weekly off: ${DateUtils.weekdayNames(latestProvider.offDays)}). " +
+                    "Please choose another day or provider."
+            )
         }
         val latestService = ServiceRepository.getService(service.id)
         if (latestService == null || !latestService.isActive) {
@@ -259,6 +277,10 @@ object BookingRepository {
             throw BookingException("Please choose a different date or slot.")
         }
         if (newSlot !in FixedData.timeSlots) throw BookingException("Please choose a time slot.")
+        val provider = UserRepository.getProvider(booking.providerId)
+        if (provider != null && isOffOn(provider, newDate)) {
+            throw BookingException("${booking.providerName} does not work on that day. Please choose another date.")
+        }
 
         // One transaction: check the new slot is free, give back the old slot, claim the new one.
         val ref = bookings.document(booking.id)

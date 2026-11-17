@@ -7,6 +7,7 @@ import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
+import com.example.servicehub.data.model.Service
 import com.example.servicehub.data.model.User
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
@@ -73,6 +74,17 @@ object AdminRepository {
     suspend fun updateService(serviceId: String, price: Int, description: String) {
         db.collection("services").document(serviceId)
             .update(mapOf("price" to price, "description" to description)).await()
+    }
+
+    /** Admin adds a brand-new service (e.g. "Geyser repair") to a category. */
+    suspend fun addService(categoryId: String, name: String, description: String, price: Int, durationMins: Int) {
+        val ref = db.collection("services").document()
+        ref.set(
+            Service(
+                id = ref.id, categoryId = categoryId, name = name, description = description,
+                price = price, durationMins = durationMins, isActive = true,
+            )
+        ).await()
     }
 
     /** Hide (false) or show (true) a service for customers. */

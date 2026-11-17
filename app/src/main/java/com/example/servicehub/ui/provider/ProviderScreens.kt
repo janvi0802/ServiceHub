@@ -13,7 +13,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Switch
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.example.servicehub.data.DateUtils
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -80,6 +84,32 @@ fun ProviderHomeScreen(
                 }
             }
             message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        }
+        // Weekly days off
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Weekly days off", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Customers cannot book you on these days. Jobs already booked stay as they are. " +
+                            "Want to work on a day off this week? Just untick it.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    // Monday first, as people usually think of a week (Calendar numbers: 2..7, then 1 = Sunday)
+                    Row(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        listOf(2, 3, 4, 5, 6, 7, 1).forEach { day ->
+                            FilterChip(
+                                selected = day in p.offDays,
+                                onClick = { viewModel.toggleOffDay(day) },
+                                label = { Text(DateUtils.weekdayShortNames[day - 1]) },
+                            )
+                        }
+                    }
+                }
+            }
         }
         // New requests banner
         if (requestCount > 0) {

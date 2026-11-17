@@ -26,6 +26,7 @@ import com.example.servicehub.data.repository.NotificationRepository
 import com.example.servicehub.data.repository.UserRepository
 import com.example.servicehub.ui.admin.AdminAllProvidersScreen
 import com.example.servicehub.ui.admin.AdminBookingsScreen
+import com.example.servicehub.ui.admin.AdminComplaintsScreen
 import com.example.servicehub.ui.admin.AdminDashboardScreen
 import com.example.servicehub.ui.admin.AdminServicesScreen
 import com.example.servicehub.ui.admin.AdminUsersScreen
@@ -299,6 +300,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onOpenAllProviders = { navController.navigate(Routes.ADMIN_ALL_PROVIDERS) },
                     onOpenUsers = { navController.openTab(Routes.ADMIN_USERS, Routes.ADMIN_DASHBOARD) },
                     onOpenBookings = { navController.openTab(Routes.ADMIN_BOOKINGS, Routes.ADMIN_DASHBOARD) },
+                    onOpenComplaints = { navController.navigate(Routes.ADMIN_COMPLAINTS) },
                     onLoggedOut = onLoggedOut,
                 )
             }
@@ -309,6 +311,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.ADMIN_USERS) { AdminUsersScreen() }
             composable(Routes.ADMIN_SERVICES) { AdminServicesScreen() }
             composable(Routes.ADMIN_BOOKINGS) { AdminBookingsScreen() }
+            composable(Routes.ADMIN_COMPLAINTS) { AdminComplaintsScreen(onBack = { navController.popBackStack() }) }
         }
     }
 }

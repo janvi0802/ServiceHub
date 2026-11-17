@@ -49,6 +49,18 @@ class ProviderJobsViewModel : ViewModel() {
         }
     }
 
+    /** Tick or untick one weekly day off (1 = Sunday ... 7 = Saturday). Saves at once. */
+    fun toggleOffDay(day: Int) = viewModelScope.launch {
+        val current = provider.value?.offDays.orEmpty()
+        val updated = if (day in current) current - day else current + day
+        try {
+            ProviderRepository.setOffDays(providerId, updated)
+            message.value = null
+        } catch (e: Exception) {
+            message.value = "Could not save days off. Check internet."
+        }
+    }
+
     companion object {
         // Small pure functions that sort bookings into groups. "companion object" = no instance needed.
 

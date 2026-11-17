@@ -47,13 +47,20 @@ import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.Service
 import com.example.servicehub.data.model.User
+import androidx.compose.ui.platform.LocalContext
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.data.model.Complaint
+import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.AdminRepository
+import com.example.servicehub.data.repository.ComplaintRepository
+import com.example.servicehub.ui.components.openDialer
 import com.example.servicehub.data.repository.ServiceRepository
 import com.example.servicehub.ui.components.Avatar
 import com.example.servicehub.ui.components.BookingCard
 import com.example.servicehub.ui.components.EmptyBox
 import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ScreenHeader
+import com.example.servicehub.ui.components.DropdownField
 import com.example.servicehub.ui.components.TextInput
 import com.example.servicehub.ui.components.ratingText
 import com.example.servicehub.ui.components.rupees
@@ -81,6 +88,7 @@ class AdminControlViewModel : ViewModel() {
     val providers = AdminRepository.allProviders().live()
     val services = ServiceRepository.allServices().live()
     val bookings = AdminRepository.allBookings().live()
+    val complaints = ComplaintRepository.all().live()
 
     /** Error or success message shown at the bottom of the screen. */
     val message = MutableStateFlow<String?>(null)
@@ -110,6 +118,66 @@ class AdminControlViewModel : ViewModel() {
 
     fun updateService(service: Service, price: Int, description: String) =
         act("${service.name} updated.") { AdminRepository.updateService(service.id, price, description) }
+
+    fun addService(categoryId: String, name: String, description: String, price: Int, durationMins: Int) =
+        act("$name added.") { AdminRepository.addService(categoryId, name, description, price, durationMins) }
+
+    fun resolve(complaint: Complaint) =
+        act("Marked as resolved. The customer has been told.") { ComplaintRepository.resolve(complaint) }
+}
+
+// ===================================================================== Complaints
+
+@Composable
+fun AdminComplaintsScreen(onBack: () -> Unit, viewModel: AdminControlViewModel = viewModel()) {
+    val complaints by viewModel.complaints.collectAsState()
+    var filter by rememberSaveable { mutableStateOf("Open") }
+    val context = LocalContext.current
+
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader("Complaints", onBack)
+        FilterRow(listOf("Open", "Resolved", "All"), filter) { filter = it }
+        MessageLine(viewModel)
+        val shown = complaints?.filter {
+            when (filter) {
+                "Open" -> it.status == ComplaintStatus.OPEN
+                "Resolved" -> it.status == ComplaintStatus.RESOLVED
+                else -> true
+            }
+        }
+        ListOrState(shown, if (filter == "Open") "No open complaints. 🎉" else "Nothing here.") { list ->
+            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(list, key = { it.id }) { c ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(c.serviceName, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                Text(
+                                    if (c.status == ComplaintStatus.OPEN) "OPEN" else "RESOLVED",
+                                    color = if (c.status == ComplaintStatus.OPEN) StatusRejected else StatusCompleted,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
+                            Text("${c.customerName} → ${c.providerName}", style = MaterialTheme.typography.bodySmall)
+                            Text("\"${c.message}\"", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Reported ${DateUtils.dateTime(c.createdAt)} • Booking ${c.bookingId.take(8).uppercase()}",
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { openDialer(context, c.customerPhone) }) { Text("Call customer") }
+                                OutlinedButton(onClick = { openDialer(context, c.providerPhone) }) { Text("Call provider") }
+                            }
+                            if (c.status == ComplaintStatus.OPEN) {
+                                Button(onClick = { viewModel.resolve(c) }) { Text("Mark resolved") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ===================================================================== shared bits
@@ -149,14 +217,19 @@ private fun <T> ListOrState(list: List<T>?, emptyText: String, content: @Composa
 fun AdminUsersScreen(viewModel: AdminControlViewModel = viewModel()) {
     val users by viewModel.users.collectAsState()
     var filter by rememberSaveable { mutableStateOf("All") }
+    var search by rememberSaveable { mutableStateOf("") }
     var confirmUser by remember { mutableStateOf<User?>(null) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Users")
+        TextInput(
+            search, { search = it }, "Search name, email or phone",
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
         FilterRow(listOf("All", "Customers", "Providers", "Blocked"), filter) { filter = it }
         MessageLine(viewModel)
         val shown = users?.filter {
-            it.role != Roles.ADMIN && when (filter) {
+            it.role != Roles.ADMIN && userMatches(it, search.trim()) && when (filter) {
                 "Customers" -> it.role == Roles.CUSTOMER
                 "Providers" -> it.role == Roles.PROVIDER
                 "Blocked" -> it.isBlocked
@@ -195,6 +268,13 @@ fun AdminUsersScreen(viewModel: AdminControlViewModel = viewModel()) {
         )
     }
 }
+
+/** Empty search matches everyone; otherwise name, email or phone must contain the text. */
+fun userMatches(user: User, text: String): Boolean =
+    text.isEmpty() ||
+        user.name.contains(text, ignoreCase = true) ||
+        user.email.contains(text, ignoreCase = true) ||
+        user.phone.contains(text)
 
 @Composable
 private fun UserCard(user: User, onToggleBlock: () -> Unit) {
@@ -284,9 +364,12 @@ private fun ProviderAdminCard(provider: Provider, onApprove: () -> Unit, onRejec
 fun AdminServicesScreen(viewModel: AdminControlViewModel = viewModel()) {
     val services by viewModel.services.collectAsState()
     var editing by remember { mutableStateOf<Service?>(null) }
+    var adding by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Manage services")
+        ScreenHeader("Manage services") {
+            TextButton(onClick = { adding = true }) { Text("+ Add") }
+        }
         MessageLine(viewModel)
         ListOrState(services, "No services yet. Use \"Load sample data\" on the Dashboard.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -308,6 +391,16 @@ fun AdminServicesScreen(viewModel: AdminControlViewModel = viewModel()) {
                 }
             }
         }
+    }
+
+    if (adding) {
+        AddServiceDialog(
+            onSave = { categoryId, name, description, price, minutes ->
+                viewModel.addService(categoryId, name, description, price, minutes)
+                adding = false
+            },
+            onDismiss = { adding = false },
+        )
     }
 
     editing?.let { service ->
@@ -362,6 +455,45 @@ private fun EditServiceDialog(service: Service, onSave: (Int, String) -> Unit, o
         },
         confirmButton = {
             TextButton(onClick = { onSave(price ?: 0, description.trim()) }, enabled = valid) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
+    )
+}
+
+/** New service: category, name, description, price (₹1–1,00,000) and duration (5–600 minutes). */
+@Composable
+private fun AddServiceDialog(onSave: (String, String, String, Int, Int) -> Unit, onDismiss: () -> Unit) {
+    var categoryName by remember { mutableStateOf(FixedData.categories.first().name) }
+    var name by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var priceText by remember { mutableStateOf("") }
+    var minutesText by remember { mutableStateOf("") }
+    val price = priceText.toIntOrNull()
+    val minutes = minutesText.toIntOrNull()
+    val valid = name.isNotBlank() && description.isNotBlank() &&
+        price != null && price in 1..100000 && minutes != null && minutes in 5..600
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add service") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DropdownField("Category", FixedData.categories.map { it.name }, categoryName, { categoryName = it })
+                TextInput(name, { name = it.take(40) }, "Name, e.g. Geyser repair")
+                TextInput(description, { description = it.take(120) }, "Short description", singleLine = false)
+                TextInput(priceText, { priceText = it.filter(Char::isDigit).take(6) }, "Price (₹)", keyboardType = KeyboardType.Number)
+                TextInput(minutesText, { minutesText = it.filter(Char::isDigit).take(3) }, "Duration (minutes)", keyboardType = KeyboardType.Number)
+                if (!valid) Text("Fill every field. Price ₹1–1,00,000, duration 5–600 min.", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val categoryId = FixedData.categories.first { it.name == categoryName }.id
+                    onSave(categoryId, name.trim(), description.trim(), price ?: 0, minutes ?: 0)
+                },
+                enabled = valid,
+            ) { Text("Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
     )

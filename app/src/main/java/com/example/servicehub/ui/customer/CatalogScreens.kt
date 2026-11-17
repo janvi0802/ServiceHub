@@ -84,7 +84,14 @@ fun CategoryServicesScreen(
         when {
             services == null -> LoadingBox()
             services.isEmpty() -> EmptyBox("No services yet. (Admin: use \"Load sample data\".)")
-            else -> ServiceList(services, showCategory = false, onServiceClick)
+            else -> {
+                Text(
+                    "Fixed prices + ₹${FixedData.VISIT_FEE} visit fee. ${FixedData.PRICE_NOTE}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+                ServiceList(services, showCategory = false, onServiceClick)
+            }
         }
     }
 }

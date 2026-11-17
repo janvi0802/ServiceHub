@@ -35,7 +35,10 @@ import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Review
 import com.example.servicehub.data.model.Service
+import com.example.servicehub.data.model.isOffOn
+import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.ProviderRepository
+import com.example.servicehub.data.repository.UserRepository
 import com.example.servicehub.data.repository.ServiceRepository
 import com.example.servicehub.ui.components.Avatar
 import com.example.servicehub.ui.components.EmptyBox
@@ -78,19 +81,29 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
     val selectedArea = MutableStateFlow(ALL_AREAS)
     val selectedSort = MutableStateFlow(ProviderSort.RATING)
+    /** "Available today" chip, for urgent needs: hides providers whose weekly day off is today. */
+    val onlyToday = MutableStateFlow(false)
     val service = MutableStateFlow<Service?>(null)
 
-    /** Bookable providers of this category, filtered by area and sorted. null = loading. */
+    /** Bookable providers of this category, filtered by area (and today) and sorted. null = loading. */
     val providers: StateFlow<List<Provider>?> =
-        combine(ProviderRepository.bookableProviders(categoryId), selectedArea, selectedSort) { list, area, sort ->
+        combine(ProviderRepository.bookableProviders(categoryId), selectedArea, selectedSort, onlyToday) { list, area, sort, today ->
             val inArea = if (area == ALL_AREAS) list else list.filter { it.area == area }
-            sortProviders(inArea, sort)
+            val shown = if (today) inArea.filter { !isOffOn(it, DateUtils.today()) } else inArea
+            sortProviders(shown, sort)
         }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         viewModelScope.launch { service.value = runCatching { ServiceRepository.getService(serviceId) }.getOrNull() }
+        // Start with the customer's own saved area (they can still tap "All areas").
+        viewModelScope.launch {
+            val myArea = runCatching {
+                UserRepository.getUser(AuthRepository.currentUserId.orEmpty())?.area
+            }.getOrNull()
+            if (!myArea.isNullOrBlank() && myArea in FixedData.areas) selectedArea.value = myArea
+        }
     }
 }
 
@@ -103,6 +116,7 @@ fun ProviderListScreen(
     val providers by viewModel.providers.collectAsState()
     val area by viewModel.selectedArea.collectAsState()
     val sort by viewModel.selectedSort.collectAsState()
+    val onlyToday by viewModel.onlyToday.collectAsState()
     val service by viewModel.service.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
@@ -135,6 +149,11 @@ fun ProviderListScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            FilterChip(
+                selected = onlyToday,
+                onClick = { viewModel.onlyToday.value = !onlyToday },
+                label = { Text("⚡ Available today") },
+            )
             Text("Sort:", style = MaterialTheme.typography.labelLarge)
             ProviderSort.entries.forEach { option ->
                 FilterChip(
@@ -147,10 +166,30 @@ fun ProviderListScreen(
         val list = providers
         when {
             list == null -> LoadingBox()
-            list.isEmpty() -> EmptyBox(
-                if (area == ALL_AREAS) "No providers available right now."
-                else "No providers available in $area. Try \"All areas\"."
-            )
+            list.isEmpty() -> Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    when {
+                        area != ALL_AREAS -> "No providers available in $area."
+                        onlyToday -> "No providers working today."
+                        else -> "No providers available right now."
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                // One tap to widen the search instead of a dead end
+                if (area != ALL_AREAS || onlyToday) {
+                    Button(
+                        onClick = {
+                            viewModel.selectedArea.value = ALL_AREAS
+                            viewModel.onlyToday.value = false
+                        },
+                        modifier = Modifier.padding(top = 12.dp),
+                    ) { Text("Show all providers") }
+                }
+            }
             else -> LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -175,6 +214,9 @@ private fun ProviderCard(provider: Provider, onClick: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(provider.name, style = MaterialTheme.typography.titleMedium)
                 ProviderBadges(provider)
+                if (isOffOn(provider, DateUtils.today())) {
+                    Text("Off today • book another day", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
                 Text("${provider.experienceYears} yrs experience • ${provider.area}", style = MaterialTheme.typography.bodySmall)
                 Text(
                     "${ratingText(provider.ratingAvg, provider.ratingCount)}  •  ${provider.jobsCompleted} jobs done",
@@ -276,6 +318,9 @@ private fun ProviderHeader(p: Provider) {
             ProviderBadges(p)
             Text(FixedData.categoryById(p.categoryId)?.name.orEmpty() + " • " + p.area)
             Text("${p.experienceYears} years experience", style = MaterialTheme.typography.bodySmall)
+            if (p.offDays.isNotEmpty()) {
+                Text("Weekly off: ${DateUtils.weekdayNames(p.offDays)}", style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 "${ratingText(p.ratingAvg, p.ratingCount)}  •  ${p.jobsCompleted} jobs done",
                 color = MaterialTheme.colorScheme.primary,

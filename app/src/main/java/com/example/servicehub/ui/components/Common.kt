@@ -2,6 +2,7 @@ package com.example.servicehub.ui.components
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -196,6 +197,16 @@ fun ConfirmDialog(
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
     )
+}
+
+/**
+ * Opens the phone's maps app (e.g. Google Maps) searching for this address.
+ * "geo:" links are built into Android: no API key, no GPS permission, no library.
+ * If no maps app is installed, nothing happens.
+ */
+fun openMaps(context: Context, address: String) {
+    val intent = Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(address)}".toUri())
+    runCatching { context.startActivity(intent) }
 }
 
 /**
