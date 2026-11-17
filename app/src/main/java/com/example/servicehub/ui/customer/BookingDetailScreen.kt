@@ -57,6 +57,7 @@ import com.example.servicehub.ui.components.StatusSteps
 import com.example.servicehub.ui.components.TimelineCard
 import com.example.servicehub.ui.components.openDialer
 import java.util.Calendar
+import kotlinx.coroutines.flow.Flow
 
 /** Customer's view of one booking: live status, PIN, call, cancel, reschedule, rate, receipt. */
 @Composable
@@ -77,6 +78,7 @@ fun BookingDetailScreen(
     var showReschedule by rememberSaveable { mutableStateOf(false) }
     var showReport by rememberSaveable { mutableStateOf(false) }
     val complaints by viewModel.myComplaints.collectAsState()
+    val provider by viewModel.provider.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
         val loadedBooking = (load as? BookingLoad.Loaded)?.booking
@@ -213,6 +215,8 @@ fun BookingDetailScreen(
         if (showReschedule) {
             RescheduleDialog(
                 booking = booking,
+                offDays = provider?.offDays.orEmpty(),
+                busySlotsFor = { date -> viewModel.busySlotsFor(booking.providerId, date) },
                 isBusy = isBusy,
                 error = message,
                 onConfirm = { date, slot -> viewModel.reschedule(booking, date, slot) { showReschedule = false } },
@@ -257,6 +261,8 @@ private fun PinCard(pin: String) {
 @Composable
 private fun RescheduleDialog(
     booking: Booking,
+    offDays: List<Int>,
+    busySlotsFor: (String) -> Flow<Set<String>>,
     isBusy: Boolean,
     error: String?,
     onConfirm: (String, String) -> Unit,
@@ -265,7 +271,15 @@ private fun RescheduleDialog(
     var date by remember { mutableStateOf(booking.date) }
     var slot by remember { mutableStateOf(booking.timeSlot) }
     val hourNow = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    fun slotOver(d: String, s: String) = d == DateUtils.today() && FixedData.isSlotOverToday(s, hourNow)
+    fun slotOver(d: String, s: String) = !FixedData.isBookableTime(d, s, DateUtils.today(), hourNow)
+    fun isOff(d: String) = DateUtils.weekdayOf(d) in offDays
+
+    // Slots taken on the chosen date (listening again whenever the date changes).
+    // This booking's own current slot is not "taken by someone else".
+    val busyFlow = remember(date) { busySlotsFor(date) }
+    val busyRaw by busyFlow.collectAsState(initial = emptySet())
+    val busy = if (date == booking.date) busyRaw - booking.timeSlot else busyRaw
+    fun unavailable(d: String, s: String) = slotOver(d, s) || isOff(d) || s in busy
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -275,16 +289,22 @@ private fun RescheduleDialog(
                 Text("Date", fontWeight = FontWeight.Bold)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DateUtils.nextDays(7).forEach { d ->
-                        FilterChip(selected = d == date, onClick = { date = d }, label = { Text(DateUtils.chipLabel(d)) })
+                        FilterChip(
+                            selected = d == date,
+                            onClick = { date = d },
+                            enabled = !isOff(d),   // provider's weekly day off
+                            label = { Text(if (isOff(d)) "${DateUtils.chipLabel(d)} · off" else DateUtils.chipLabel(d)) },
+                        )
                     }
                 }
                 Text("Slot", fontWeight = FontWeight.Bold)
                 FixedData.timeSlots.forEach { s ->
+                    val taken = s in busy
                     FilterChip(
                         selected = s == slot,
                         onClick = { slot = s },
-                        enabled = !slotOver(date, s),
-                        label = { Text(s) },
+                        enabled = !unavailable(date, s),
+                        label = { Text(if (taken) "$s · Booked" else s) },
                         modifier = Modifier.height(36.dp),
                     )
                 }
@@ -297,7 +317,8 @@ private fun RescheduleDialog(
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(date, slot) },
-                enabled = !isBusy && !slotOver(date, slot),
+                enabled = !isBusy && !unavailable(date, slot) &&
+                    !(date == booking.date && slot == booking.timeSlot),   // must be a different time
             ) { Text(if (isBusy) "Saving..." else "Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },

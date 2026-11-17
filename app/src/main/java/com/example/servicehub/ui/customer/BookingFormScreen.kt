@@ -101,8 +101,13 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             val provider = UserRepository.getProvider(providerId)
             val service = ServiceRepository.getService(serviceId)
             if (customer == null || provider == null || service == null) throw Exception("Could not load booking details.")
-            // Start on the first day the provider works (skip their weekly days off).
-            val firstWorkingDay = DateUtils.nextDays(7).firstOrNull { !isOffOn(provider, it) } ?: DateUtils.today()
+            // Start on the first day the provider works (skip days off) that still has a slot left
+            // (e.g. after 8 PM, today has no slots, so start tomorrow).
+            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val firstWorkingDay = DateUtils.nextDays(7).firstOrNull { date ->
+                !isOffOn(provider, date) &&
+                    FixedData.timeSlots.any { FixedData.isBookableTime(date, it, DateUtils.today(), hour) }
+            } ?: DateUtils.today()
             _uiState.update {
                 it.copy(
                     customer = customer, provider = provider, service = service,

@@ -24,6 +24,8 @@ import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.NotificationRepository
 import com.example.servicehub.data.repository.UserRepository
+import com.example.servicehub.data.repository.ProviderRepository
+import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.ui.admin.AdminAllProvidersScreen
 import com.example.servicehub.ui.admin.AdminBookingsScreen
 import com.example.servicehub.ui.admin.AdminComplaintsScreen
@@ -111,6 +113,21 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
         if (me?.isBlocked == true) {
             AuthRepository.logout()
             onLoggedOut()   // fresh session -> Login screen; logging in again shows "blocked"
+        }
+    }
+
+    // Providers: if the admin takes back an approval while they use the app,
+    // send them to the waiting screen at once (they cannot keep taking jobs).
+    val providerFlow = remember(userId, role) {
+        if (userId == null || role != Roles.PROVIDER) flowOf(null)
+        else ProviderRepository.liveProvider(userId).catch { emit(null) }
+    }
+    val myProvider by providerFlow.collectAsState(initial = null)
+    val approval = myProvider?.approvalStatus
+    LaunchedEffect(approval) {
+        val onWaitingScreen = navController.currentDestination?.route == Routes.PENDING_APPROVAL
+        if (approval != null && approval != ApprovalStatus.APPROVED && !onWaitingScreen) {
+            navController.clearAndOpen(Routes.PENDING_APPROVAL)
         }
     }
 

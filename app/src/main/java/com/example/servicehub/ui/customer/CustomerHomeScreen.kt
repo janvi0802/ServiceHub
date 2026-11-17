@@ -81,10 +81,18 @@ class CustomerHomeViewModel : ViewModel() {
             bookings.filter { it.isOpen }
                 .minWithOrNull(compareBy<Booking> { it.date }.thenBy { FixedData.timeSlots.indexOf(it.timeSlot) })
 
-        /** The most recent completed booking that has not been rated yet. */
-        fun rateReminder(bookings: List<Booking>): Booking? =
-            bookings.filter { it.bookingStatus == BookingStatus.COMPLETED && !it.isRated }
-                .maxByOrNull { it.completedAt }
+        /** How long the "Rate your service" card keeps reminding: 7 days after completion. */
+        private const val RATE_REMINDER_MILLIS = 7L * 24 * 60 * 60 * 1000
+
+        /**
+         * The most recent completed booking that is not rated yet, if it finished in the last
+         * 7 days (so the reminder doesn't stay forever if the customer prefers not to rate).
+         */
+        fun rateReminder(bookings: List<Booking>, now: Long = System.currentTimeMillis()): Booking? =
+            bookings.filter {
+                it.bookingStatus == BookingStatus.COMPLETED && !it.isRated &&
+                    now - it.completedAt <= RATE_REMINDER_MILLIS
+            }.maxByOrNull { it.completedAt }
 
         /** Cheapest visible price per category id, for "from ₹149". */
         fun minPriceByCategory(services: List<Service>): Map<String, Int> =

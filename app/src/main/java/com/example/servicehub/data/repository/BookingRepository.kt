@@ -132,6 +132,9 @@ object BookingRepository {
             throw BookingException("${service.name} is not offered right now.")
         }
         if (timeSlot !in FixedData.timeSlots) throw BookingException("Please choose a time slot.")
+        if (!FixedData.isBookableTime(date, timeSlot, DateUtils.today(), currentHour())) {
+            throw BookingException("That time has already passed. Please choose a later slot.")
+        }
         val ref = bookings.document()          // creates a new random id
         val now = System.currentTimeMillis()
         val booking = Booking(
@@ -164,6 +167,8 @@ object BookingRepository {
         )
         return ref.id
     }
+
+    private fun currentHour() = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
 
     /** "Thu, 5 Nov, Morning (9 AM – 12 PM)" for notification messages. */
     private fun slotText(booking: Booking) = "${DateUtils.pretty(booking.date)}, ${booking.timeSlot}"
@@ -277,6 +282,9 @@ object BookingRepository {
             throw BookingException("Please choose a different date or slot.")
         }
         if (newSlot !in FixedData.timeSlots) throw BookingException("Please choose a time slot.")
+        if (!FixedData.isBookableTime(newDate, newSlot, DateUtils.today(), currentHour())) {
+            throw BookingException("That time has already passed. Please choose a later slot.")
+        }
         val provider = UserRepository.getProvider(booking.providerId)
         if (provider != null && isOffOn(provider, newDate)) {
             throw BookingException("${booking.providerName} does not work on that day. Please choose another date.")

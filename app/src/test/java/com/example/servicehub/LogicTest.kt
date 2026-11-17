@@ -290,8 +290,22 @@ class LogicTest {
             Booking(id = "rated", status = "COMPLETED", completedAt = 30, isRated = true),
         )
         assertEquals("soonest", CustomerHomeViewModel.nextUpcoming(list)?.id)
-        assertEquals("newer", CustomerHomeViewModel.rateReminder(list)?.id)
+        // "now" just after the jobs finished -> newest unrated one is shown
+        assertEquals("newer", CustomerHomeViewModel.rateReminder(list, now = 100)?.id)
+        // 8 days later -> the reminder has gone
+        val eightDays = 8L * 24 * 60 * 60 * 1000
+        assertEquals(null, CustomerHomeViewModel.rateReminder(list, now = 20 + eightDays))
         assertEquals(null, CustomerHomeViewModel.nextUpcoming(emptyList()))
+    }
+
+    @Test
+    fun bookableTime_refusesPastDatesAndFinishedSlots() {
+        val (morning, _, evening) = FixedData.timeSlots
+        val today = "2026-11-20"
+        assertFalse(FixedData.isBookableTime("2026-11-19", evening, today, 8))   // yesterday
+        assertFalse(FixedData.isBookableTime(today, morning, today, 12))         // morning over at 12
+        assertTrue(FixedData.isBookableTime(today, evening, today, 12))          // evening still open
+        assertTrue(FixedData.isBookableTime("2026-11-21", morning, today, 23))   // tomorrow
     }
 
     @Test

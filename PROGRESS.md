@@ -102,6 +102,15 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   Report a problem (complaints collection) + admin Complaints screen with call buttons and
   Mark resolved (customer notified), admin Add service, admin user search.
   29 logic tests. Rules updated (offDays, complaints) — must be published again.
+- Full re-check: every app write verified against firestore.rules (all allowed, nothing extra).
+  Fixed: reschedule popup now greys out days off and taken slots; booking form starts on the
+  first day with a free slot (not "today" after 8 PM); server refuses past dates/finished
+  slots for booking and reschedule; provider whose approval is withdrawn is moved to the
+  waiting screen live; rate reminder only for 7 days; rejected providers can "Check again".
+  30 logic tests, lint 0 errors.
+- Known prototype limits (documented): any active user can create a notification for anyone
+  (needed so customers can notify providers; real fix = Cloud Functions, paid plan);
+  a customer could change any provider's rating fields via rules (same reason).
 
 ## Next step
 

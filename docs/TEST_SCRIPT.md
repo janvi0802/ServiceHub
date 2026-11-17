@@ -85,6 +85,9 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC67 | Report a problem | Customer → booking → "Report a problem" → text → Send | "Problem reported..." shown; admin dashboard Open complaints = 1 | |
 | TC68 | Resolve | Admin → Open complaints → Call buttons, Mark resolved | Complaint moves to Resolved; customer gets a notification and sees "resolved" | |
 | TC69 | Add service | Admin → Services → + Add (e.g. Geyser repair, ₹399, 60 min) | Appears for customers in that category and in search | |
+| TC71 | Reschedule smart | Reschedule a booking of a provider with Sunday off | Sunday shows "· off", taken slots "· Booked", Save disabled for the same time | |
+| TC72 | Late evening | Open a booking form after 8 PM | Form starts on tomorrow (or next working day) | |
+| TC73 | Approval withdrawn | Admin → All providers → Reject an approved provider who is using the app | Provider's phone switches to "Application rejected" at once | |
 | TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)

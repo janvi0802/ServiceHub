@@ -5,6 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.Complaint
+import com.example.servicehub.data.model.Provider
+import com.example.servicehub.data.repository.ProviderRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.BookingRepository
 import com.example.servicehub.data.repository.ComplaintRepository
@@ -40,6 +47,19 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         ComplaintRepository.forBooking(AuthRepository.currentUserId.orEmpty(), bookingId)
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** The booking's provider, live (for their weekly days off in the reschedule popup). */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val provider: StateFlow<Provider?> = booking
+        .map { (it as? BookingLoad.Loaded)?.booking?.providerId.orEmpty() }
+        .distinctUntilChanged()
+        .flatMapLatest { id -> if (id.isEmpty()) flowOf(null) else ProviderRepository.liveProvider(id) }
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /** Live busy slots of this booking's provider on [date] (used by the reschedule popup). */
+    fun busySlotsFor(providerId: String, date: String): Flow<Set<String>> =
+        BookingRepository.busySlots(providerId, date).catch { emit(emptySet()) }
 
     /** True while an action is being saved (buttons are disabled). */
     val isBusy = MutableStateFlow(false)

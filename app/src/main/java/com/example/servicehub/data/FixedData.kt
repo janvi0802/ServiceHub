@@ -60,6 +60,13 @@ object FixedData {
         return index >= 0 && currentHour >= slotEndHours[index]
     }
 
+    /**
+     * True if this date + slot can still be booked: not in the past, and not a slot that is
+     * already over today. ("yyyy-MM-dd" dates compare correctly as text.)
+     */
+    fun isBookableTime(date: String, slot: String, today: String, currentHour: Int): Boolean =
+        date > today || (date == today && !isSlotOverToday(slot, currentHour))
+
     val paymentModes = listOf("Cash", "UPI")
 
     /** Fixed visit charge added to every booking, in rupees. */

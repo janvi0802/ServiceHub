@@ -97,18 +97,19 @@ fun PendingApprovalScreen(
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            if (isRejected) "Sorry, the admin did not approve your provider account."
+            if (isRejected) "Sorry, the admin did not approve your provider account. " +
+                "If you think this is a mistake, please contact the ServiceHub admin. " +
+                "If they approve you later, tap \"Check again\"."
             else "Thanks for registering! The admin will check your details soon. " +
                 "Once approved, customers can find and book you.",
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
-        if (!isRejected) {
-            Button(onClick = viewModel::checkAgain, enabled = !state.isChecking) {
-                Text(if (state.isChecking) "Checking..." else "Check again")
-            }
-            Spacer(Modifier.height(8.dp))
+        // Also shown when rejected: the admin can still approve them later from "All providers".
+        Button(onClick = viewModel::checkAgain, enabled = !state.isChecking) {
+            Text(if (state.isChecking) "Checking..." else "Check again")
         }
+        Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onLogout) { Text("Log out") }
     }
 }
