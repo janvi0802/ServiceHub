@@ -112,6 +112,8 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   (needed so customers can notify providers; real fix = Cloud Functions, paid plan);
   a customer could change any provider's rating fields via rules (same reason).
 
+- Firestore security rules PUBLISHED in the Console (test-mode expiry of 4 Dec 2026 no longer applies).
+
 ## Next step
 
 1. Publish `firestore.rules` in Firebase Console (Firestore → Rules → paste → Publish).
