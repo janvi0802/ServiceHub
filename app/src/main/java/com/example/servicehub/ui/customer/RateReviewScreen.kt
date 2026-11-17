@@ -107,7 +107,7 @@ fun RateReviewScreen(
             Text("by ${b.providerName}")
 
             if (b.isRated) {
-                Text("You have already rated this booking. Thank you! ⭐")
+                Text("You have already rated this booking. Thank you!")
                 return@Column
             }
 

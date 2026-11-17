@@ -74,10 +74,19 @@ data class Provider(
     val createdAt: Long = 0L,
     /** Weekly days off, as Calendar day numbers: 1 = Sunday, 2 = Monday ... 7 = Saturday. */
     val offDays: List<Int> = emptyList(),
+    /** Single dates ("yyyy-MM-dd") the provider chose to work even though it is their day off. */
+    val extraWorkDates: List<String> = emptyList(),
 )
 
-/** True if the provider has a weekly day off on this date ("yyyy-MM-dd"). */
-fun isOffOn(provider: Provider, date: String): Boolean = DateUtils.weekdayOf(date) in provider.offDays
+/**
+ * True if the provider does not work on this date ("yyyy-MM-dd"):
+ * it is one of their weekly days off, and they did not choose "Work today" for it.
+ */
+fun isOffOn(provider: Provider, date: String): Boolean =
+    DateUtils.weekdayOf(date) in provider.offDays && date !in provider.extraWorkDates
+
+/** The first date from today (within a week) the provider works, e.g. "2026-11-18". Null if none. */
+fun nextWorkingDay(provider: Provider, days: List<String>): String? = days.firstOrNull { !isOffOn(provider, it) }
 
 /** slots/{providerId_date_slotNumber} : marks one provider slot as busy (no personal details). */
 data class SlotInfo(

@@ -2,6 +2,8 @@ package com.example.servicehub.ui.admin
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
@@ -33,6 +35,12 @@ data class DashboardStats(
     val totalBookings: Int = 0,
     val completedValue: Int = 0,
     val topProviders: List<Provider> = emptyList(),
+    /** Bookings made on each of the last 7 days, oldest first, e.g. ("Mon", 3). */
+    val bookingsPerDay: List<Pair<String, Int>> = emptyList(),
+    /** Completed value per category name, biggest first, e.g. ("Plumber", 1490). */
+    val revenueByCategory: List<Pair<String, Int>> = emptyList(),
+    /** The 5 newest bookings, for the "Recent activity" list. */
+    val recent: List<Booking> = emptyList(),
 ) {
     companion object {
         /** Counts everything from the three live lists. Pure function = easy to test. */
@@ -48,7 +56,25 @@ data class DashboardStats(
             totalBookings = bookings.size,
             completedValue = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.totalAmount },
             topProviders = topProviders(providers),
+            bookingsPerDay = bookingsPerDay(bookings),
+            revenueByCategory = revenueByCategory(bookings),
+            recent = bookings.sortedByDescending { it.createdAt }.take(5),
         )
+
+        /** How many bookings were CREATED on each of the last 7 days (oldest first). */
+        fun bookingsPerDay(bookings: List<Booking>, now: Long = System.currentTimeMillis()): List<Pair<String, Int>> =
+            DateUtils.lastDays(7, now).map { day ->
+                val label = DateUtils.weekdayShortNames[(DateUtils.weekdayOf(day) - 1).coerceIn(0, 6)]
+                label to bookings.count { it.createdAt > 0 && DateUtils.dateOf(it.createdAt) == day }
+            }
+
+        /** Total value of COMPLETED bookings per category, biggest first (categories with ₹0 left out). */
+        fun revenueByCategory(bookings: List<Booking>): List<Pair<String, Int>> =
+            bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }
+                .groupBy { it.categoryId }
+                .map { (id, list) -> (FixedData.categoryById(id)?.name ?: id) to list.sumOf { it.totalAmount } }
+                .filter { it.second > 0 }
+                .sortedByDescending { it.second }
 
         /** Best 3 approved providers who have done some work: highest rating first, then most jobs. */
         fun topProviders(providers: List<Provider>): List<Provider> =

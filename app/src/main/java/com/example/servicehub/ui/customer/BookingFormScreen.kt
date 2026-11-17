@@ -44,6 +44,12 @@ import com.example.servicehub.ui.components.ScreenHeader
 import com.example.servicehub.ui.components.TextInput
 import com.example.servicehub.ui.components.rupees
 import com.example.servicehub.data.model.isOffOn
+import com.example.servicehub.data.model.nextWorkingDay
+import com.example.servicehub.ui.components.InfoBanner
+import com.example.servicehub.ui.components.BottomActionBar
+import com.example.servicehub.ui.theme.StatusRequested
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EventBusy
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -215,9 +221,18 @@ fun BookingFormScreen(
                 }
             }
             if (provider.offDays.isNotEmpty()) {
-                Text(
-                    "${provider.name} is off every ${DateUtils.weekdayNames(provider.offDays)}. Need help that day? Choose another provider.",
-                    style = MaterialTheme.typography.bodySmall,
+                val today = DateUtils.today()
+                val next = nextWorkingDay(provider, DateUtils.nextDays(7))
+                InfoBanner(
+                    icon = Icons.Filled.EventBusy,
+                    color = StatusRequested,
+                    text = if (isOffOn(provider, today)) {
+                        "${provider.name} is off today (${DateUtils.weekdayShortNames[DateUtils.weekdayOf(today) - 1]})." +
+                            (next?.let { " Next available: ${DateUtils.pretty(it)}." } ?: "") +
+                            " Need it today? Choose another provider."
+                    } else {
+                        "${provider.name} is off every ${DateUtils.weekdayNames(provider.offDays)}."
+                    },
                 )
             }
 
@@ -265,12 +280,20 @@ fun BookingFormScreen(
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
 
-        Button(
-            onClick = viewModel::confirm,
-            enabled = !state.isSaving,
-            modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
-        ) {
-            Text(if (state.isSaving) "Booking..." else "Confirm booking • ${rupees(service.price + FixedData.VISIT_FEE)}")
+        // Fixed bottom bar: total on the left, the main action on the right
+        BottomActionBar {
+            Column(Modifier.weight(1f)) {
+                Text(rupees(service.price + FixedData.VISIT_FEE), style = MaterialTheme.typography.titleLarge)
+                Text("incl. ₹${FixedData.VISIT_FEE} visit fee · pay after service", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Button(
+                onClick = viewModel::confirm,
+                enabled = !state.isSaving,
+                modifier = Modifier.height(50.dp),
+            ) {
+                Text(if (state.isSaving) "Booking..." else "Confirm booking")
+            }
         }
     }
 }

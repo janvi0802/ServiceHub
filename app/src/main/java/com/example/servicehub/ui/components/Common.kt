@@ -34,6 +34,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.WorkspacePremium
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.model.ApprovalStatus
@@ -44,27 +50,38 @@ import com.example.servicehub.data.model.isTopRated
 import com.example.servicehub.ui.theme.BrandOrange
 import com.example.servicehub.ui.theme.StatusCompleted
 
-/** Title row at the top of a screen, with a back arrow when [onBack] is given. */
+/**
+ * Top bar of a screen: back arrow (if [onBack]), bold title, optional subtitle and actions.
+ * White, with a thin line underneath (like most modern apps).
+ */
 @Composable
-fun ScreenHeader(title: String, onBack: (() -> Unit)? = null, actions: @Composable () -> Unit = {}) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (onBack != null) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+fun ScreenHeader(
+    title: String,
+    onBack: (() -> Unit)? = null,
+    subtitle: String? = null,
+    actions: @Composable () -> Unit = {},
+) {
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            } else {
+                Box(Modifier.padding(start = 12.dp))
             }
-        } else {
-            Box(Modifier.padding(start = 8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                if (subtitle != null) {
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            actions()
         }
-        Text(
-            title,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f),
-        )
-        actions()
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -72,58 +89,83 @@ fun ScreenHeader(title: String, onBack: (() -> Unit)? = null, actions: @Composab
 @Composable
 fun LoadingBox() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        androidx.compose.material3.CircularProgressIndicator()
+        androidx.compose.material3.CircularProgressIndicator(strokeWidth = 3.dp)
     }
 }
 
-/** Icon + message in the middle of the screen, e.g. "No bookings yet". */
+/**
+ * Friendly empty screen: a big icon in a tinted circle, a message, and optionally a button
+ * that tells the person what to do next (e.g. "Explore services").
+ */
 @Composable
-fun EmptyBox(message: String, icon: ImageVector = Icons.Filled.Inbox) {
+fun EmptyBox(
+    message: String,
+    icon: ImageVector = Icons.Filled.Inbox,
+    title: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
     Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                icon, contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                modifier = Modifier.size(64.dp),
-            )
+            Box(
+                Modifier.size(88.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+            }
+            if (title != null) {
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
+            }
             Text(
                 message,
                 textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 12.dp),
+                modifier = Modifier.padding(top = if (title != null) 6.dp else 16.dp),
             )
+            if (actionLabel != null && onAction != null) {
+                Button(onClick = onAction, modifier = Modifier.padding(top = 16.dp)) { Text(actionLabel) }
+            }
         }
     }
 }
 
-/** Small "✔ Verified" and "★ Top rated" labels shown next to a provider. */
+/** "Verified" and "Top rated" labels shown next to a provider (icons, not emoji). */
 @Composable
 fun ProviderBadges(provider: Provider) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (provider.approvalStatus == ApprovalStatus.APPROVED) {
-            SmallBadge("✔ Verified", StatusCompleted)
+            SmallBadge(Icons.Filled.Verified, "Verified", StatusCompleted)
         }
         if (isTopRated(provider)) {
-            SmallBadge("★ Top rated", BrandOrange)
+            SmallBadge(Icons.Filled.WorkspacePremium, "Top rated", BrandOrange)
         }
     }
 }
 
 @Composable
-private fun SmallBadge(text: String, color: Color) {
-    Text(
-        text,
-        color = color,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .background(color.copy(alpha = 0.12f), RoundedCornerShape(50))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-    )
+private fun SmallBadge(icon: ImageVector, text: String, color: Color) {
+    Row(
+        Modifier
+            .background(color.copy(alpha = 0.10f), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
+        Text(" $text", color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+    }
 }
 
-/** A small colored label showing a booking status. */
+/** Star icon + "4.5 (12)" or "New". */
+@Composable
+fun RatingLabel(ratingAvg: Double, ratingCount: Int, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFF5A623), modifier = Modifier.size(14.dp))
+        Text(" ${ratingText(ratingAvg, ratingCount)}", style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+/** A booking status as a soft pill: coloured text on a light tint of the same colour. */
 @Composable
 fun StatusChip(status: BookingStatus) = StatusChip(status.label, status.color)
 
@@ -131,7 +173,7 @@ fun StatusChip(status: BookingStatus) = StatusChip(status.label, status.color)
 @Composable
 fun BookingStatusChip(booking: Booking) {
     when {
-        booking.isExpired -> StatusChip("Expired", Color.Gray)
+        booking.isExpired -> StatusChip("Expired", Color(0xFF6B7280))
         booking.isOverdue -> StatusChip("Overdue", Color(0xFFE8710A))   // orange: provider is late
         else -> StatusChip(booking.bookingStatus)
     }
@@ -139,15 +181,20 @@ fun BookingStatusChip(booking: Booking) {
 
 @Composable
 fun StatusChip(label: String, color: Color) {
-    Text(
-        text = label,
-        color = Color.White,
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier
-            .background(color, RoundedCornerShape(50))
+    Row(
+        Modifier
+            .background(color.copy(alpha = 0.10f), RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp),
-    )
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(6.dp).background(color, CircleShape))
+        Text(
+            "  $label",
+            color = color,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
 }
 
 /** One "label: value" line, used on detail and receipt screens. */
@@ -165,9 +212,9 @@ fun InfoRow(label: String, value: String, bold: Boolean = false) {
     }
 }
 
-/** "★ 4.5 (12 reviews)", or "New" if nobody has rated yet. */
+/** "4.5 (12)" (average and number of reviews), or "New" if nobody has rated yet. */
 fun ratingText(ratingAvg: Double, ratingCount: Int): String =
-    if (ratingCount == 0) "★ New" else "★ %.1f (%d)".format(ratingAvg, ratingCount)
+    if (ratingCount == 0) "New" else "%.1f (%d)".format(ratingAvg, ratingCount)
 
 /** 1999 -> "₹1,999" */
 fun rupees(amount: Int): String = "₹" + "%,d".format(amount)

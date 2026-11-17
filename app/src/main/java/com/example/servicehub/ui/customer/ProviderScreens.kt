@@ -36,6 +36,9 @@ import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Review
 import com.example.servicehub.data.model.Service
 import com.example.servicehub.data.model.isOffOn
+import com.example.servicehub.data.model.nextWorkingDay
+import com.example.servicehub.ui.theme.StatusCompleted
+import com.example.servicehub.ui.theme.StatusRequested
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.ProviderRepository
 import com.example.servicehub.data.repository.UserRepository
@@ -44,6 +47,27 @@ import com.example.servicehub.ui.components.Avatar
 import com.example.servicehub.ui.components.EmptyBox
 import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ProviderBadges
+import com.example.servicehub.ui.components.StarRow
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.BottomActionBar
+import com.example.servicehub.ui.components.Caption
+import com.example.servicehub.ui.components.CardTitle
+import com.example.servicehub.ui.components.RatingLabel
+import com.example.servicehub.ui.components.SectionHeader
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material3.Icon
 import com.example.servicehub.ui.components.ScreenHeader
 import com.example.servicehub.ui.components.ratingText
 import com.example.servicehub.ui.components.rupees
@@ -58,7 +82,7 @@ import kotlinx.coroutines.launch
 private const val ALL_AREAS = "All areas"
 
 /** How the customer wants providers ordered. */
-enum class ProviderSort(val label: String) { RATING("★ Rating"), EXPERIENCE("Experience"), JOBS("Jobs done") }
+enum class ProviderSort(val label: String) { RATING("Rating"), EXPERIENCE("Experience"), JOBS("Jobs done") }
 
 /** Best first for the chosen sort; ties are broken by rating, then by name. */
 fun sortProviders(list: List<Provider>, sort: ProviderSort): List<Provider> {
@@ -152,7 +176,8 @@ fun ProviderListScreen(
             FilterChip(
                 selected = onlyToday,
                 onClick = { viewModel.onlyToday.value = !onlyToday },
-                label = { Text("⚡ Available today") },
+                label = { Text("Available today") },
+                leadingIcon = { Icon(Icons.Filled.Bolt, contentDescription = null, modifier = Modifier.size(16.dp)) },
             )
             Text("Sort:", style = MaterialTheme.typography.labelLarge)
             ProviderSort.entries.forEach { option ->
@@ -215,14 +240,20 @@ private fun ProviderCard(provider: Provider, onClick: () -> Unit) {
                 Text(provider.name, style = MaterialTheme.typography.titleMedium)
                 ProviderBadges(provider)
                 if (isOffOn(provider, DateUtils.today())) {
-                    Text("Off today • book another day", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    val next = nextWorkingDay(provider, DateUtils.nextDays(7))
+                    Text(
+                        "Off today" + (next?.let { " · next available ${DateUtils.chipLabel(it)}" } ?: ""),
+                        style = MaterialTheme.typography.labelSmall, color = StatusRequested,
+                    )
+                } else {
+                    Text("Available today", style = MaterialTheme.typography.labelSmall, color = StatusCompleted)
                 }
-                Text("${provider.experienceYears} yrs experience • ${provider.area}", style = MaterialTheme.typography.bodySmall)
                 Text(
-                    "${ratingText(provider.ratingAvg, provider.ratingCount)}  •  ${provider.jobsCompleted} jobs done",
+                    "${provider.experienceYears} yrs experience · ${provider.area} · ${provider.jobsCompleted} jobs",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                RatingLabel(provider.ratingAvg, provider.ratingCount)
             }
         }
     }
@@ -260,7 +291,7 @@ fun ProviderDetailScreen(
     val service by viewModel.service.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Provider", onBack)
+        ScreenHeader("Professional", onBack)
         val p = provider
         if (p == null) {
             LoadingBox()
@@ -273,74 +304,134 @@ fun ProviderDetailScreen(
         ) {
             item { ProviderHeader(p) }
             item {
-                Text("About", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(p.bio.ifBlank { "No bio yet." }, style = MaterialTheme.typography.bodyMedium)
+                AppCard {
+                    CardTitle("About")
+                    Text(
+                        p.bio.ifBlank { "${p.name} has not written a bio yet." },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    InfoLine(Icons.Filled.LocationOn, "Works in ${p.area}")
+                    InfoLine(
+                        Icons.Filled.EventBusy,
+                        if (p.offDays.isEmpty()) "Works all 7 days" else "Weekly off: ${DateUtils.weekdayNames(p.offDays)}",
+                    )
+                    InfoLine(Icons.Filled.Verified, "Approved by the ServiceHub team")
+                }
             }
             item {
-                HorizontalDivider()
-                Text(
-                    "Reviews (${reviews.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                SectionHeader("Reviews (${reviews.size})")
             }
             if (reviews.isEmpty()) {
-                item { Text("No reviews yet.", style = MaterialTheme.typography.bodyMedium) }
+                item { Caption("No reviews yet. Be the first to book and rate ${p.name.substringBefore(" ")}.") }
+            } else {
+                item { RatingSummary(reviews) }
             }
             items(reviews, key = { it.id }) { review -> ReviewItem(review) }
         }
 
-        // Book button fixed at the bottom
+        // Fixed bottom bar: the chosen service and price, and the Book button
         val s = service
-        Button(
-            onClick = { onBook(p.id, viewModel.serviceId) },
-            enabled = s != null && p.isAvailable,
-            modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
-        ) {
-            Text(
-                when {
-                    !p.isAvailable -> "Provider not available now"
-                    s == null -> "Loading..."
-                    else -> "Book ${s.name} • ${rupees(s.price)}"
+        BottomActionBar {
+            Column(Modifier.weight(1f)) {
+                Text(s?.name ?: "Loading...", style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                if (s != null) {
+                    Text(rupees(s.price) + " + ₹${FixedData.VISIT_FEE} visit", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+            Button(
+                onClick = { onBook(p.id, viewModel.serviceId) },
+                enabled = s != null && p.isAvailable,
+                modifier = Modifier.height(50.dp),
+            ) { Text(if (p.isAvailable) "Book now" else "Not available") }
+        }
+    }
+}
+
+/** Big centred avatar, name, badges, and three stats (Airbnb-style profile header). */
+@Composable
+private fun ProviderHeader(p: Provider) {
+    AppCard {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Avatar(p.name, 84.dp)
+            Text(p.name, style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 10.dp))
+            Text(
+                FixedData.categoryById(p.categoryId)?.name.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Box(Modifier.padding(top = 8.dp)) { ProviderBadges(p) }
+        }
+        HorizontalDivider(Modifier.padding(vertical = 14.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Row(Modifier.fillMaxWidth()) {
+            HeaderStat(if (p.ratingCount == 0) "New" else "%.1f".format(p.ratingAvg), "Rating", Modifier.weight(1f))
+            HeaderStat("${p.experienceYears} yrs", "Experience", Modifier.weight(1f))
+            HeaderStat("${p.jobsCompleted}", "Jobs done", Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun ProviderHeader(p: Provider) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Avatar(p.name, 72.dp)
-        Column {
-            Text(p.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            ProviderBadges(p)
-            Text(FixedData.categoryById(p.categoryId)?.name.orEmpty() + " • " + p.area)
-            Text("${p.experienceYears} years experience", style = MaterialTheme.typography.bodySmall)
-            if (p.offDays.isNotEmpty()) {
-                Text("Weekly off: ${DateUtils.weekdayNames(p.offDays)}", style = MaterialTheme.typography.bodySmall)
+private fun HeaderStat(value: String, label: String, modifier: Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleLarge)
+        Caption(label)
+    }
+}
+
+@Composable
+private fun InfoLine(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        Text("  $text", style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Average stars and how many reviews gave each star (5 down to 1), as thin bars. */
+@Composable
+private fun RatingSummary(reviews: List<Review>) {
+    val average = reviews.map { it.rating }.average()
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 20.dp)) {
+                Text("%.1f".format(average), style = MaterialTheme.typography.headlineMedium)
+                StarRow(average.roundToInt())
+                Caption("${reviews.size} reviews")
             }
-            Text(
-                "${ratingText(p.ratingAvg, p.ratingCount)}  •  ${p.jobsCompleted} jobs done",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                (5 downTo 1).forEach { star ->
+                    val count = reviews.count { it.rating == star }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Caption("$star", modifier = Modifier.width(12.dp))
+                        LinearProgressIndicator(
+                            progress = { count.toFloat() / reviews.size },
+                            modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = Color(0xFFF5A623),
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            drawStopIndicator = {},
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun ReviewItem(review: Review) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp)) {
-            Row {
-                Text(review.customerName, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                val stars = review.rating.coerceIn(0, 5)   // safety: repeat() crashes on negative numbers
-                Text("★".repeat(stars) + "☆".repeat(5 - stars), color = MaterialTheme.colorScheme.secondary)
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Avatar(review.customerName, 36.dp)
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Text(review.customerName, style = MaterialTheme.typography.titleSmall)
+                Caption(DateUtils.dateTime(review.createdAt))
             }
-            if (review.comment.isNotBlank()) Text(review.comment, style = MaterialTheme.typography.bodyMedium)
-            Text(DateUtils.dateTime(review.createdAt), style = MaterialTheme.typography.labelSmall)
+            StarRow(review.rating)
+        }
+        if (review.comment.isNotBlank()) {
+            Text(review.comment, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

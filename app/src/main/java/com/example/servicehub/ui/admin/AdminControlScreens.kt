@@ -61,6 +61,20 @@ import com.example.servicehub.data.Category
 import com.example.servicehub.data.CategoryIcons
 import com.example.servicehub.data.CategoryStore
 import com.example.servicehub.data.categoryColorChoices
+import androidx.compose.material.icons.automirrored.filled.EventNote
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material3.HorizontalDivider
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.Caption
+import com.example.servicehub.ui.components.ConfirmDialog
+import com.example.servicehub.ui.components.InfoRow
+import com.example.servicehub.ui.components.SectionHeader
+import com.example.servicehub.ui.components.StatTile
+import com.example.servicehub.ui.components.StatusChip
+import com.example.servicehub.ui.theme.BrandBlue
+import com.example.servicehub.ui.theme.BrandOrange
+import com.example.servicehub.ui.theme.StatusAccepted
 import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.model.Complaint
 import com.example.servicehub.data.model.ComplaintStatus
@@ -280,7 +294,7 @@ fun AdminComplaintsScreen(onBack: () -> Unit, viewModel: AdminControlViewModel =
                 else -> true
             }
         }
-        ListOrState(shown, if (filter == "Open") "No open complaints. 🎉" else "Nothing here.") { list ->
+        ListOrState(shown, if (filter == "Open") "No open complaints. Everything is fine." else "Nothing here.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(list, key = { it.id }) { c ->
                     Card(Modifier.fillMaxWidth()) {
@@ -349,14 +363,14 @@ private fun <T> ListOrState(list: List<T>?, emptyText: String, content: @Composa
 // ===================================================================== Users (block / unblock)
 
 @Composable
-fun AdminUsersScreen(viewModel: AdminControlViewModel = viewModel()) {
+fun AdminUsersScreen(onOpenUser: (String) -> Unit, viewModel: AdminControlViewModel = viewModel()) {
     val users by viewModel.users.collectAsState()
     var filter by rememberSaveable { mutableStateOf("All") }
     var search by rememberSaveable { mutableStateOf("") }
     var confirmUser by remember { mutableStateOf<User?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Users")
+        ScreenHeader("Users", subtitle = "${users.orEmpty().count { it.role != Roles.ADMIN }} people · tap one for details")
         TextInput(
             search, { search = it }, "Search name, email or phone",
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -375,7 +389,7 @@ fun AdminUsersScreen(viewModel: AdminControlViewModel = viewModel()) {
         ListOrState(shown, "No users here.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(list, key = { it.id }) { user ->
-                    UserCard(user, onToggleBlock = { confirmUser = user })
+                    UserCard(user, onClick = { onOpenUser(user.id) })
                 }
             }
         }
@@ -412,21 +426,120 @@ fun userMatches(user: User, text: String): Boolean =
         user.phone.contains(text)
 
 @Composable
-private fun UserCard(user: User, onToggleBlock: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun UserCard(user: User, onClick: () -> Unit) {
+    AppCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Avatar(user.name)
             Column(Modifier.weight(1f)) {
-                Text(user.name, fontWeight = FontWeight.Bold)
-                Text("${user.role.replaceFirstChar { it.uppercase() }} • ${user.area}", style = MaterialTheme.typography.bodySmall)
-                Text(user.email, style = MaterialTheme.typography.bodySmall)
-                if (user.isBlocked) Text("BLOCKED", color = StatusRejected, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                Text(user.name, style = MaterialTheme.typography.titleSmall)
+                Caption(user.email)
+                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RolePill(user.role)
+                    if (user.isBlocked) StatusChip("Blocked", StatusRejected)
+                }
             }
-            if (user.isBlocked) {
-                Button(onClick = onToggleBlock) { Text("Unblock") }
-            } else {
-                OutlinedButton(onClick = onToggleBlock) { Text("Block", color = StatusRejected) }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** "Customer" in blue, "Provider" in orange. */
+@Composable
+private fun RolePill(role: String) {
+    if (role == Roles.PROVIDER) StatusChip("Provider", BrandOrange) else StatusChip("Customer", BrandBlue)
+}
+
+// ===================================================================== User detail
+
+/**
+ * Everything about one user for the admin: contact, role, bookings, money, and block/unblock.
+ * Totals: money SPENT for customers, money EARNED for providers (completed bookings only).
+ */
+@Composable
+fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminControlViewModel = viewModel()) {
+    val users by viewModel.users.collectAsState()
+    val bookings by viewModel.bookings.collectAsState()
+    val providers by viewModel.providers.collectAsState()
+    val context = LocalContext.current
+    var confirm by rememberSaveable { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader("User details", onBack)
+        val user = users?.firstOrNull { it.id == userId }
+        if (user == null) {
+            if (users == null) LoadingBox() else EmptyBox("User not found.")
+            return@Column
+        }
+        val isProvider = user.role == Roles.PROVIDER
+        val theirs = bookings.orEmpty().filter { if (isProvider) it.providerId == userId else it.customerId == userId }
+        val completed = theirs.filter { it.bookingStatus == BookingStatus.COMPLETED }
+        val provider = providers?.firstOrNull { it.id == userId }
+
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                AppCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(user.name, 56.dp)
+                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                            Text(user.name, style = MaterialTheme.typography.titleLarge)
+                            Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                RolePill(user.role)
+                                if (user.isBlocked) StatusChip("Blocked", StatusRejected)
+                            }
+                        }
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    InfoRow("Email", user.email)
+                    InfoRow("Phone", user.phone)
+                    InfoRow("Area", user.area.ifBlank { "-" })
+                    if (user.address.isNotBlank()) InfoRow("Address", user.address)
+                    if (user.createdAt > 0) InfoRow("Joined", DateUtils.dateTime(user.createdAt))
+                    if (provider != null) {
+                        InfoRow("Category", FixedData.categoryById(provider.categoryId)?.name.orEmpty())
+                        InfoRow("Approval", provider.approvalStatus)
+                        InfoRow("Rating", ratingText(provider.ratingAvg, provider.ratingCount))
+                    }
+                    Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { openDialer(context, user.phone) }) { Text("Call") }
+                        if (user.isBlocked) {
+                            Button(onClick = { confirm = true }) { Text("Unblock") }
+                        } else {
+                            OutlinedButton(onClick = { confirm = true }) { Text("Block", color = StatusRejected) }
+                        }
+                    }
+                }
             }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatTile("Bookings", "${theirs.size}", Icons.AutoMirrored.Filled.EventNote, StatusAccepted, Modifier.weight(1f))
+                    StatTile(
+                        if (isProvider) "Earned" else "Spent",
+                        rupees(completed.sumOf { it.totalAmount }),
+                        Icons.Filled.CurrencyRupee, StatusCompleted, Modifier.weight(1f),
+                    )
+                }
+            }
+            item { MessageLine(viewModel) }
+            item { SectionHeader("Booking history") }
+            if (theirs.isEmpty()) item { Caption("No bookings yet.") }
+            items(theirs, key = { it.id }) { b ->
+                BookingCard(b, if (isProvider) "Customer: ${b.customerName}" else "with ${b.providerName}", onClick = {})
+            }
+        }
+
+        if (confirm) {
+            val block = !user.isBlocked
+            ConfirmDialog(
+                title = if (block) "Block ${user.name}?" else "Unblock ${user.name}?",
+                message = if (block) "They will be logged out and cannot log in. Blocked providers are hidden from customers."
+                else "They will be able to log in again.",
+                confirmText = if (block) "Block" else "Unblock",
+                onConfirm = {
+                    viewModel.setBlocked(user, block)
+                    confirm = false
+                },
+                onDismiss = { confirm = false },
+            )
         }
     }
 }

@@ -46,6 +46,10 @@ import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.PROVIDER_CANCEL_PREFIX
 import com.example.servicehub.ui.theme.StatusCompleted
+import com.example.servicehub.ui.theme.StatusRequested
+import com.example.servicehub.ui.components.InfoBanner
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
 import com.example.servicehub.ui.booking.BookingDetailViewModel
 import com.example.servicehub.ui.booking.BookingInfoCard
 import com.example.servicehub.ui.booking.BookingLoad
@@ -174,11 +178,11 @@ fun BookingDetailScreen(
             val latest = complaints.firstOrNull()
             if (latest != null) {
                 val resolved = latest.status == ComplaintStatus.RESOLVED
-                Text(
-                    if (resolved) "✔ Your reported problem was resolved by the admin."
-                    else "⏳ Problem reported on ${DateUtils.dateTime(latest.createdAt)}. The admin will contact you.",
-                    color = if (resolved) StatusCompleted else MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
+                InfoBanner(
+                    icon = if (resolved) Icons.Filled.CheckCircle else Icons.Filled.Schedule,
+                    text = if (resolved) "Your reported problem was resolved by the admin."
+                    else "Problem reported on ${DateUtils.dateTime(latest.createdAt)}. The admin will contact you.",
+                    color = if (resolved) StatusCompleted else StatusRequested,
                 )
             }
             if (latest == null || latest.status == ComplaintStatus.RESOLVED) {

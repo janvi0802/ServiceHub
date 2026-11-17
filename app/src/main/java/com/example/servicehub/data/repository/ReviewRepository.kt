@@ -66,9 +66,8 @@ object ReviewRepository {
         }.await()
 
         // Tell the provider about their new review
-        val stars = "★".repeat(rating)
         NotificationRepository.send(
-            booking.providerId, "New review $stars",
+            booking.providerId, "New review: $rating/5",
             "${booking.customerName} rated your ${booking.serviceName} $rating/5" +
                 if (comment.isNotBlank()) ": \"$comment\"" else ".",
             bookingId,

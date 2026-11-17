@@ -81,7 +81,7 @@ service cloud.firestore {
         // when they complete a job. NOT approvalStatus (only the admin approves).
         || (active() && request.auth.uid == uid
             && onlyChanges(['name', 'phone', 'area', 'bio', 'experienceYears',
-                            'isAvailable', 'offDays', 'jobsCompleted', 'totalEarnings']))
+                            'isAvailable', 'offDays', 'extraWorkDates', 'jobsCompleted', 'totalEarnings']))
         // A customer leaving a review may change only the rating fields.
         || (active() && onlyChanges(['ratingAvg', 'ratingCount']));
 

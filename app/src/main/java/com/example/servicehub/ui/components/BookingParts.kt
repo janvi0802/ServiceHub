@@ -26,6 +26,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.servicehub.data.DateUtils
+import com.example.servicehub.data.FixedData
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material3.HorizontalDivider
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 
@@ -35,22 +39,25 @@ import com.example.servicehub.data.model.BookingStatus
  */
 @Composable
 fun BookingCard(booking: Booking, otherPersonName: String, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    booking.serviceName,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                BookingStatusChip(booking)
+    val category = FixedData.categoryById(booking.categoryId)
+    AppCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.Top) {
+            IconTile(category?.icon ?: Icons.Filled.Build, category?.color ?: MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(booking.serviceName, style = MaterialTheme.typography.titleMedium)
+                Text(otherPersonName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(otherPersonName, style = MaterialTheme.typography.bodyMedium)
+            BookingStatusChip(booking)
+        }
+        HorizontalDivider(Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
             Text(
-                "${DateUtils.pretty(booking.date)} • ${booking.timeSlot}",
+                " ${DateUtils.pretty(booking.date)} · ${booking.timeSlot.substringBefore(" (")}",
                 style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.weight(1f),
             )
-            Text(rupees(booking.totalAmount), fontWeight = FontWeight.Bold)
+            Text(rupees(booking.totalAmount), style = MaterialTheme.typography.titleSmall)
         }
     }
 }

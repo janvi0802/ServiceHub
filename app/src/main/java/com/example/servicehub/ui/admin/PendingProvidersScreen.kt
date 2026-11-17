@@ -93,7 +93,7 @@ private fun PendingProviderCard(provider: Provider, onApprove: () -> Unit, onRej
                 Column {
                     Text(provider.name, style = MaterialTheme.typography.titleMedium)
                     Text("$categoryName • ${provider.area} • ${provider.experienceYears} yrs")
-                    Text("📞 ${provider.phone}", style = MaterialTheme.typography.bodySmall)
+                    Text("Phone ${provider.phone}", style = MaterialTheme.typography.bodySmall)
                 }
             }
             if (provider.bio.isNotBlank()) Text(provider.bio, style = MaterialTheme.typography.bodyMedium)

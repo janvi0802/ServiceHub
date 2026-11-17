@@ -7,6 +7,7 @@ import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Review
 import com.example.servicehub.data.model.User
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -61,6 +62,16 @@ object ProviderRepository {
      */
     suspend fun setOffDays(providerId: String, days: List<Int>) {
         providers.document(providerId).update("offDays", days.distinct().sorted()).await()
+    }
+
+    /**
+     * "Work today anyway": open ONE date that is normally a day off ([work] = true),
+     * or undo it ([work] = false). The weekly setting does not change.
+     * arrayUnion / arrayRemove add or remove one item from a list stored in Firestore.
+     */
+    suspend fun setExtraWorkDate(providerId: String, date: String, work: Boolean) {
+        val change = if (work) FieldValue.arrayUnion(date) else FieldValue.arrayRemove(date)
+        providers.document(providerId).update("extraWorkDates", change).await()
     }
 
     /** Provider switches Available / Not available. Unavailable providers are hidden from customers. */

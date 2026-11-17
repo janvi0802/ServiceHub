@@ -21,6 +21,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
@@ -245,7 +248,7 @@ private fun HomeHeader(user: User?, onOpenSearch: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            if (firstName.isBlank()) "Hello 👋" else "Hello, $firstName 👋",
+            if (firstName.isBlank()) "Welcome" else "Hi, $firstName",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = Color.White,
@@ -274,24 +277,30 @@ private fun HomeHeader(user: User?, onOpenSearch: () -> Unit) {
     }
 }
 
-/** Three reasons to trust ServiceHub, always visible. */
+/** Three reasons to trust ServiceHub, always visible (like the promise row in Urban Company). */
 @Composable
 private fun TrustStrip() {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TrustItem("✔", "Verified pros")
-        TrustItem("🔒", "Start PIN")
-        TrustItem("₹", "Fixed prices")
+        TrustItem(Icons.Filled.Verified, "Verified pros", Modifier.weight(1f))
+        TrustItem(Icons.Filled.Lock, "Safe start PIN", Modifier.weight(1f))
+        TrustItem(Icons.Filled.CurrencyRupee, "Fixed prices", Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun TrustItem(symbol: String, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(symbol, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        Text(" $label", style = MaterialTheme.typography.labelMedium)
+private fun TrustItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier) {
+    Row(
+        modifier
+            .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+        Text(" $label", style = MaterialTheme.typography.labelSmall, maxLines = 1)
     }
 }
 
@@ -396,7 +405,7 @@ private fun CategoryTile(category: Category, fromPrice: Int?, onClick: () -> Uni
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(2.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 4.dp),

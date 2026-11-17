@@ -34,6 +34,24 @@ import com.example.servicehub.ui.components.BookingStatusChip
 import com.example.servicehub.ui.components.openDialer
 import com.example.servicehub.ui.components.openMaps
 import com.example.servicehub.ui.theme.BrandOrange
+import com.example.servicehub.ui.theme.StatusAccepted
+import com.example.servicehub.ui.components.InfoBanner
+import com.example.servicehub.ui.components.SectionHeader
+import com.example.servicehub.ui.components.StatTile
+import com.example.servicehub.ui.components.StarRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Today
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.WorkOutline
+import androidx.compose.material3.Icon
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -94,15 +112,45 @@ fun ProviderHomeScreen(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text("Hello, ${p.name.substringBefore(" ")} 👋", style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Hi, ${p.name.substringBefore(" ")}", style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 Text(
-                    "${FixedData.categoryById(p.categoryId)?.name.orEmpty()} • ${p.area}",
+                    "${FixedData.categoryById(p.categoryId)?.name.orEmpty()} · ${p.area}",
                     color = Color.White.copy(alpha = 0.9f),
                 )
-                Text(
-                    "✔ Verified   ${ratingText(p.ratingAvg, p.ratingCount)}   ${p.jobsCompleted} jobs",
-                    color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium,
+                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    HeaderFact(Icons.Filled.Verified, "Verified")
+                    HeaderFact(Icons.Filled.Star, ratingText(p.ratingAvg, p.ratingCount))
+                    HeaderFact(Icons.Filled.TaskAlt, "${p.jobsCompleted} jobs")
+                }
+            }
+        }
+        // Today is a day off: say so clearly, with a one-tap "work today anyway"
+        val todayDate = DateUtils.today()
+        val weeklyOffToday = DateUtils.weekdayOf(todayDate) in p.offDays
+        if (weeklyOffToday) {
+            item {
+                val workingAnyway = todayDate in p.extraWorkDates
+                InfoBanner(
+                    icon = Icons.Filled.EventBusy,
+                    color = if (workingAnyway) StatusCompleted else StatusRequested,
+                    text = if (workingAnyway) "Today is normally your day off, but you are open for bookings today."
+                    else "Today is your weekly day off. Customers cannot book you today.",
+                    action = {
+                        TextButton(onClick = { viewModel.setWorkToday(!workingAnyway) }) {
+                            Text(if (workingAnyway) "Undo" else "Work today")
+                        }
+                    },
+                )
+            }
+        }
+        // New requests waiting for an answer
+        if (requestCount > 0) {
+            item {
+                InfoBanner(
+                    icon = Icons.Filled.NotificationsActive,
+                    color = StatusAccepted,
+                    text = "$requestCount new request${if (requestCount > 1) "s" else ""} waiting for your answer",
+                    action = { TextButton(onClick = onOpenRequests) { Text("Review") } },
                 )
             }
         }
@@ -173,34 +221,18 @@ fun ProviderHomeScreen(
                 }
             }
         }
-        // New requests banner
-        if (requestCount > 0) {
-            item {
-                Card(
-                    Modifier.fillMaxWidth().clickable(onClick = onOpenRequests),
-                    colors = CardDefaults.cardColors(containerColor = StatusRequested.copy(alpha = 0.15f)),
-                ) {
-                    Text(
-                        "🔔 $requestCount new request${if (requestCount > 1) "s" else ""} — tap to review",
-                        Modifier.padding(16.dp), fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-        }
-        // Earnings: 2 x 2 small cards
-        item {
-            Text("Earnings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
+        // Earnings: 2 x 2 tiles with icons
+        item { SectionHeader("Earnings") }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatCard("Today", rupees(ProviderJobsViewModel.todaysEarnings(all)), Modifier.weight(1f))
-                StatCard("Total", rupees(p.totalEarnings), Modifier.weight(1f))
+                StatTile("Today", rupees(ProviderJobsViewModel.todaysEarnings(all)), Icons.Filled.Today, StatusCompleted, Modifier.weight(1f))
+                StatTile("Total", rupees(p.totalEarnings), Icons.Filled.AccountBalanceWallet, BrandOrange, Modifier.weight(1f))
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatCard("Jobs done", p.jobsCompleted.toString(), Modifier.weight(1f))
-                StatCard("Rating", ratingText(p.ratingAvg, p.ratingCount), Modifier.weight(1f))
+                StatTile("Jobs done", p.jobsCompleted.toString(), Icons.Filled.TaskAlt, StatusAccepted, Modifier.weight(1f))
+                StatTile("Rating", ratingText(p.ratingAvg, p.ratingCount), Icons.Filled.Star, Color(0xFFF5A623), Modifier.weight(1f))
             }
         }
         // This week's earnings as 7 simple bars (no chart library needed)
@@ -225,15 +257,22 @@ fun ProviderHomeScreen(
         items(reviews.take(3), key = { "review_${it.id}" }) { review ->
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    val stars = review.rating.coerceIn(0, 5)
                     Row {
                         Text(review.customerName, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Text("★".repeat(stars) + "☆".repeat(5 - stars), color = MaterialTheme.colorScheme.secondary)
+                        StarRow(review.rating)
                     }
                     if (review.comment.isNotBlank()) Text(review.comment, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HeaderFact(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+        Text(" $text", color = Color.White, style = MaterialTheme.typography.labelLarge)
     }
 }
 
@@ -301,7 +340,11 @@ fun ProviderRequestsScreen(
         val requests = ProviderJobsViewModel.newRequests(all)
         val upcoming = ProviderJobsViewModel.upcoming(all)
         if (requests.isEmpty() && upcoming.isEmpty()) {
-            EmptyBox("No requests or upcoming jobs yet.")
+            EmptyBox(
+                title = "No jobs yet",
+                message = "New requests from customers will appear here. Stay available to get more bookings.",
+                icon = Icons.Filled.WorkOutline,
+            )
             return@Column
         }
         LazyColumn(
@@ -329,7 +372,7 @@ fun JobHistoryScreen(
         if (all == null) { LoadingBox(); return@Column }
         val history = ProviderJobsViewModel.history(all)
         if (history.isEmpty()) {
-            EmptyBox("No finished jobs yet.")
+            EmptyBox(title = "No history yet", message = "Completed, rejected and cancelled jobs will appear here.", icon = Icons.Filled.History)
             return@Column
         }
         LazyColumn(

@@ -119,6 +119,17 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   search, trust strip, How it works, Quick picks, Book again), Provider Home (orange header,
   Next job with Call/Maps, This-week bar chart), requests badge on Jobs tab, brand logo on Login.
   Rules changed (categories) — publish again.
+- Design round (17 Nov): new design system (refined palette, typography, shapes, white cards on
+  grey, soft status pills, icon tiles, section headers, fixed bottom action bars, helpful empty
+  states with actions) — no emoji decoration anywhere. Redesigned: booking cards, provider profile
+  (stats header, about, rating summary bars, reviews), booking form bottom bar, My Bookings
+  (counts + Today/Upcoming/Needs attention), Provider Home (clean header, day-off banner with
+  "Work today", requests banner, stat tiles), Admin dashboard (Needs attention, key numbers,
+  7-day bookings chart, bookings by status, earnings by category, top providers, recent activity),
+  Admin user detail (contact, role, history, spent/earned, block), Profile (sections, role-specific
+  help & safety, logout confirm), Notifications (icon per type, Today/Earlier).
+  Days off: providers.extraWorkDates ("Work today" opens one day off), "Off today · next
+  available" labels, clear booking-form banner. Rules updated (extraWorkDates) — publish again.
 - Firestore security rules PUBLISHED in the Console (test-mode expiry of 4 Dec 2026 no longer applies).
 
 ## Next step

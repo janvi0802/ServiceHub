@@ -97,6 +97,15 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC80 | Customer home | Customer Home | Blue header with name + area + search, trust strip, Quick picks row, "How it works" for a new customer, Book again after a completed job | |
 | TC81 | Provider home | Provider Home | Orange header, "Next job" card with Call / Open in Maps, "This week" bar chart | |
 | TC82 | Requests badge | Customer books → provider's bottom bar | Red number on the Jobs tab | |
+| TC83 | Day off today | Provider with today's weekday as day off → Provider Home | Banner "Today is your weekly day off" with **Work today** | |
+| TC84 | Work today | Tap Work today; customer opens that provider | Today is bookable; banner says "open for bookings today" with Undo | |
+| TC85 | Off today label | Customer provider list on a provider's day off | "Off today · next available …" under the name | |
+| TC86 | Provider profile | Open a provider | Big avatar, Rating / Experience / Jobs, About with area and days off, rating bars | |
+| TC87 | My bookings groups | Customer with bookings today and later | "Today", "Upcoming" groups; tab counts | |
+| TC88 | Admin dashboard | Admin home | Needs attention list, key numbers, 7-day chart, status counts, earnings by category, recent activity | |
+| TC89 | User detail | Admin → Users → tap a user | Details, Call, Block/Unblock (with confirm), bookings and spent/earned | |
+| TC90 | Profile | Any role → Profile | Header card, Personal details, Help & safety for that role, Log out asks to confirm | |
+| TC91 | Notification icons | Alerts | Each notification has its own icon/colour; grouped Today / Earlier | |
 | TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)

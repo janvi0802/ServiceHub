@@ -29,6 +29,7 @@ import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.ui.admin.AdminAllProvidersScreen
 import com.example.servicehub.ui.admin.AdminBookingsScreen
 import com.example.servicehub.ui.admin.AdminCategoriesScreen
+import com.example.servicehub.ui.admin.AdminUserDetailScreen
 import com.example.servicehub.ui.admin.AdminComplaintsScreen
 import com.example.servicehub.ui.admin.AdminDashboardScreen
 import com.example.servicehub.ui.admin.AdminServicesScreen
@@ -276,7 +277,10 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 )
             }
             composable(Routes.MY_BOOKINGS) {
-                MyBookingsScreen(onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) })
+                MyBookingsScreen(
+                    onBookingClick = { id -> navController.navigate(Routes.bookingDetail(id)) },
+                    onExplore = { navController.openTab(Routes.CUSTOMER_HOME, Routes.CUSTOMER_HOME) },
+                )
             }
             composable(Routes.BOOKING_DETAIL) {
                 BookingDetailScreen(
@@ -345,7 +349,15 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.ADMIN_ALL_PROVIDERS) {
                 AdminAllProvidersScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.ADMIN_USERS) { AdminUsersScreen() }
+            composable(Routes.ADMIN_USERS) {
+                AdminUsersScreen(onOpenUser = { id -> navController.navigate(Routes.adminUserDetail(id)) })
+            }
+            composable(Routes.ADMIN_USER_DETAIL) { entry ->
+                AdminUserDetailScreen(
+                    userId = entry.arguments?.getString("userId").orEmpty(),
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable(Routes.ADMIN_SERVICES) {
                 AdminServicesScreen(onOpenCategories = { navController.navigate(Routes.ADMIN_CATEGORIES) })
             }

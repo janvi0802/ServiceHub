@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -88,7 +89,11 @@ fun CategoryServicesScreen(
         val services = all?.filter { it.categoryId == categoryId }
         when {
             services == null -> LoadingBox()
-            services.isEmpty() -> EmptyBox("No services yet. (Admin: use \"Load sample data\".)")
+            services.isEmpty() -> EmptyBox(
+                title = "Coming soon",
+                message = "Services in $categoryName will be available soon. Please check back later.",
+                icon = Icons.Filled.Schedule,
+            )
             else -> {
                 Text(
                     "Fixed prices + ₹${FixedData.VISIT_FEE} visit fee. ${FixedData.PRICE_NOTE}",
@@ -132,8 +137,16 @@ fun SearchScreen(
         val results = all?.filter { text.isNotEmpty() && matchesSearch(it, text) }
         when {
             all == null -> LoadingBox()
-            text.isEmpty() -> EmptyBox("Type a service name to search.")
-            results.isNullOrEmpty() -> EmptyBox("No services found for \"$text\".")
+            text.isEmpty() -> EmptyBox(
+                title = "What do you need?",
+                message = "Try \"tap\", \"fan\" or a category like \"plumber\".",
+                icon = Icons.Filled.Search,
+            )
+            results.isNullOrEmpty() -> EmptyBox(
+                title = "No results",
+                message = "Nothing matches \"$text\". Check the spelling or try a category name.",
+                icon = Icons.Filled.SearchOff,
+            )
             else -> ServiceList(results, showCategory = true, onServiceClick)
         }
     }

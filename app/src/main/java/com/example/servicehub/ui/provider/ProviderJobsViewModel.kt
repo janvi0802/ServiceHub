@@ -61,6 +61,16 @@ class ProviderJobsViewModel : ViewModel() {
         }
     }
 
+    /** "Work today" on a day off (or undo it). Only today changes; the weekly days off stay. */
+    fun setWorkToday(work: Boolean) = viewModelScope.launch {
+        try {
+            ProviderRepository.setExtraWorkDate(providerId, DateUtils.today(), work)
+            message.value = null
+        } catch (e: Exception) {
+            message.value = "Could not save. Check internet."
+        }
+    }
+
     companion object {
         // Small pure functions that sort bookings into groups. "companion object" = no instance needed.
 

@@ -35,6 +35,24 @@ import com.example.servicehub.data.model.AppNotification
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.NotificationRepository
 import com.example.servicehub.ui.components.EmptyBox
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.IconTile
+import com.example.servicehub.ui.theme.StatusAccepted
+import com.example.servicehub.ui.theme.StatusCompleted
+import com.example.servicehub.ui.theme.StatusInProgress
+import com.example.servicehub.ui.theme.StatusRejected
+import com.example.servicehub.ui.theme.StatusRequested
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EventRepeat
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ScreenHeader
 import kotlinx.coroutines.flow.SharingStarted
@@ -79,43 +97,73 @@ fun NotificationsScreen(
         val items = list
         when {
             items == null -> LoadingBox()
-            items.isEmpty() -> EmptyBox("No notifications yet.\nUpdates about your bookings will appear here.")
+            items.isEmpty() -> EmptyBox(
+                title = "You're all caught up",
+                message = "Updates about your bookings will appear here.",
+                icon = Icons.Filled.NotificationsNone,
+            )
             else -> LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(items, key = { it.id }) { notification ->
-                    NotificationCard(notification, onClick = {
-                        viewModel.markRead(notification)
-                        if (notification.bookingId.isNotBlank()) onOpenBooking(notification.bookingId)
-                    })
+                // Group: Today, then Earlier
+                val today = items.filter { DateUtils.isToday(it.createdAt) }
+                val earlier = items.filter { !DateUtils.isToday(it.createdAt) }
+                listOf("Today" to today, "Earlier" to earlier).filter { it.second.isNotEmpty() }.forEach { (title, list) ->
+                    item(key = "header_$title") {
+                        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    items(list, key = { it.id }) { notification ->
+                        NotificationCard(notification, onClick = {
+                            viewModel.markRead(notification)
+                            if (notification.bookingId.isNotBlank()) onOpenBooking(notification.bookingId)
+                        })
+                    }
                 }
             }
         }
     }
 }
 
+/** Which icon and colour a notification gets, chosen from its title. */
+fun notificationStyle(title: String): Pair<ImageVector, Color> = when {
+    title.contains("request", true) -> Icons.Filled.NotificationsActive to StatusRequested
+    title.contains("accepted", true) || title.contains("approved", true) && !title.contains("not", true) ->
+        Icons.Filled.CheckCircle to StatusAccepted
+    title.contains("started", true) -> Icons.Filled.PlayCircle to StatusInProgress
+    title.contains("completed", true) || title.contains("resolved", true) -> Icons.Filled.TaskAlt to StatusCompleted
+    title.contains("review", true) -> Icons.Filled.Star to Color(0xFFF5A623)
+    title.contains("rescheduled", true) -> Icons.Filled.EventRepeat to StatusAccepted
+    title.contains("rejected", true) || title.contains("cancelled", true) || title.contains("not approved", true) ->
+        Icons.Filled.Cancel to StatusRejected
+    else -> Icons.Filled.Notifications to StatusAccepted
+}
+
 @Composable
 private fun NotificationCard(notification: AppNotification, onClick: () -> Unit) {
     val unread = !notification.isRead
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (unread) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
-        ),
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            // Blue dot for unread
-            Box(
-                Modifier
-                    .padding(top = 6.dp, end = 10.dp)
-                    .size(10.dp)
-                    .background(if (unread) MaterialTheme.colorScheme.primary else Color.Transparent, CircleShape)
-            )
-            Column(Modifier.weight(1f)) {
-                Text(notification.title, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal)
-                Text(notification.message, style = MaterialTheme.typography.bodyMedium)
-                Text(DateUtils.dateTime(notification.createdAt), style = MaterialTheme.typography.labelSmall)
+    val (icon, color) = notificationStyle(notification.title)
+    AppCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.Top) {
+            IconTile(icon, color, size = 40.dp, iconSize = 20.dp)
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        notification.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (unread) FontWeight.Bold else FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    // Blue dot = not read yet
+                    if (unread) Box(Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                }
+                Text(notification.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    DateUtils.dateTime(notification.createdAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
     }

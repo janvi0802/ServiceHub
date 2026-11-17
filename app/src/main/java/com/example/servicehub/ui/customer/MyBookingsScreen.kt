@@ -22,6 +22,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.servicehub.data.model.Booking
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.data.FixedData
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.MaterialTheme
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.BookingRepository
 import com.example.servicehub.ui.components.BookingCard
@@ -39,6 +45,21 @@ class MyBookingsViewModel : ViewModel() {
         BookingRepository.customerBookings(AuthRepository.currentUserId.orEmpty())
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    companion object {
+        /**
+         * Active bookings grouped for easy scanning: "Today", then "Upcoming" (soonest first),
+         * then "Earlier" (accepted jobs from past days that never started). Empty groups are left out.
+         */
+        fun groupActive(open: List<Booking>, today: String): List<Pair<String, List<Booking>>> {
+            val sorted = open.sortedWith(compareBy<Booking> { it.date }.thenBy { FixedData.timeSlots.indexOf(it.timeSlot) })
+            return listOf(
+                "Today" to sorted.filter { it.date == today },
+                "Upcoming" to sorted.filter { it.date > today },
+                "Needs attention" to sorted.filter { it.date < today },
+            ).filter { it.second.isNotEmpty() }
+        }
+    }
 }
 
 /** Customer's bookings in two tabs: Active (still going) and Past (finished). */
@@ -46,32 +67,53 @@ class MyBookingsViewModel : ViewModel() {
 @Composable
 fun MyBookingsScreen(
     onBookingClick: (String) -> Unit,
+    onExplore: () -> Unit,
     viewModel: MyBookingsViewModel = viewModel(),
 ) {
     val bookings by viewModel.bookings.collectAsState()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("My Bookings")
-        PrimaryTabRow(selectedTabIndex = selectedTab) {
-            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Active") })
-            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Past") })
-        }
+        ScreenHeader("My bookings", subtitle = "Track and manage your services")
         val all = bookings
+        // Expired requests move to "Past" even though their status is still REQUESTED.
+        val active = all.orEmpty().filter { it.isOpen }
+        val past = all.orEmpty().filter { !it.isOpen }
+        PrimaryTabRow(selectedTabIndex = selectedTab, containerColor = MaterialTheme.colorScheme.surface) {
+            Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Active (${active.size})") })
+            Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Past (${past.size})") })
+        }
         if (all == null) {
             LoadingBox()
             return@Column
         }
-        // Expired requests move to "Past" even though their status is still REQUESTED.
-        val shown = all.filter { if (selectedTab == 0) it.isOpen else !it.isOpen }
-        if (shown.isEmpty()) {
-            EmptyBox(if (selectedTab == 0) "No active bookings.\nBook a service from Home!" else "No past bookings yet.")
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(shown, key = { it.id }) { booking ->
+        val groups = if (selectedTab == 0) MyBookingsViewModel.groupActive(active, DateUtils.today())
+        else listOf("" to past)   // already newest first
+        if (groups.all { it.second.isEmpty() }) {
+            if (selectedTab == 0) {
+                EmptyBox(
+                    title = "No active bookings",
+                    message = "Book a trusted professional in a few taps.",
+                    icon = Icons.Filled.EventAvailable,
+                    actionLabel = "Explore services",
+                    onAction = onExplore,
+                )
+            } else {
+                EmptyBox(title = "No past bookings", message = "Completed and cancelled bookings will appear here.", icon = Icons.Filled.History)
+            }
+            return@Column
+        }
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            groups.forEach { (title, list) ->
+                if (title.isNotEmpty()) {
+                    item(key = "group_$title") {
+                        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                items(list, key = { it.id }) { booking ->
                     BookingCard(booking, "with ${booking.providerName}", onClick = { onBookingClick(booking.id) })
                 }
             }

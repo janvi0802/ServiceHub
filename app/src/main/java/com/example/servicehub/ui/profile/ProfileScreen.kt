@@ -30,6 +30,20 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.ui.components.Avatar
+import com.example.servicehub.data.DateUtils
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.Caption
+import com.example.servicehub.ui.components.ConfirmDialog
+import com.example.servicehub.ui.components.ListRow
+import com.example.servicehub.ui.components.ScreenHeader
+import com.example.servicehub.ui.components.SectionHeader
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Pin
+import androidx.compose.material.icons.filled.ReportProblem
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.servicehub.ui.components.DropdownField
 import com.example.servicehub.ui.components.TextInput
 
@@ -46,60 +60,102 @@ fun ProfileScreen(
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Avatar(state.name, size = 80.dp)
-        Text(state.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(
-            "${state.user?.email.orEmpty()} • ${state.user?.role.orEmpty().replaceFirstChar { it.uppercase() }}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
+    var showLogout by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // App version, read from the installed app (versionName in app/build.gradle.kts)
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+    }
 
-        TextInput(state.name, viewModel::onNameChange, "Full name")
-        TextInput(state.phone, viewModel::onPhoneChange, "Phone", keyboardType = KeyboardType.Phone)
-        DropdownField("Area", FixedData.areas, state.area, viewModel::onAreaChange)
-        TextInput(state.address, viewModel::onAddressChange, "Address (used for bookings)", singleLine = false)
-
-        // Extra fields that customers see on the provider's profile
-        if (state.isProvider) {
-            TextInput(
-                state.experienceYears, viewModel::onExperienceChange,
-                "Years of experience", keyboardType = KeyboardType.Number,
-            )
-            TextInput(state.bio, viewModel::onBioChange, "Short bio (shown to customers)", singleLine = false)
-        }
-
-        state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-
-        Button(
-            onClick = viewModel::save,
-            enabled = !state.isSaving,
-            modifier = Modifier.fillMaxWidth().height(50.dp),
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader("Profile")
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(if (state.isSaving) "Saving..." else "Save changes")
+            // Who you are
+            AppCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(state.name, size = 64.dp)
+                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                        Text(state.name.ifBlank { "Your name" }, style = MaterialTheme.typography.titleLarge)
+                        Caption(state.user?.email.orEmpty())
+                        Text(
+                            state.user?.role.orEmpty().replaceFirstChar { it.uppercase() } +
+                                (state.user?.createdAt?.takeIf { it > 0 }?.let { " · member since ${DateUtils.dateTime(it).substringBefore(",")}" } ?: ""),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            }
+
+            // Editable details
+            SectionHeader("Personal details")
+            AppCard {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TextInput(state.name, viewModel::onNameChange, "Full name")
+                    TextInput(state.phone, viewModel::onPhoneChange, "Phone", keyboardType = KeyboardType.Phone)
+                    DropdownField("Area", FixedData.areas, state.area, viewModel::onAreaChange)
+                    TextInput(state.address, viewModel::onAddressChange, "Address (used for bookings)", singleLine = false)
+                    // Extra fields that customers see on the provider's profile
+                    if (state.isProvider) {
+                        TextInput(
+                            state.experienceYears, viewModel::onExperienceChange,
+                            "Years of experience", keyboardType = KeyboardType.Number,
+                        )
+                        TextInput(state.bio, viewModel::onBioChange, "Short bio (shown to customers)", singleLine = false)
+                    }
+                    state.message?.let { Caption(it, color = MaterialTheme.colorScheme.primary) }
+                    Button(
+                        onClick = viewModel::save,
+                        enabled = !state.isSaving,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                    ) { Text(if (state.isSaving) "Saving..." else "Save changes") }
+                }
+            }
+
+            // Help, written for this role
+            SectionHeader("Help & safety")
+            AppCard {
+                if (state.isProvider) {
+                    ListRow(Icons.Filled.Pin, "Start jobs with the PIN", "Ask the customer for their 4-digit PIN when you arrive.")
+                    ListRow(Icons.Filled.EventBusy, "Days off", "Set weekly days off on your Home screen. Booked jobs are never cancelled automatically.")
+                    ListRow(Icons.Filled.Payments, "Getting paid", "Collect Cash or UPI after the job, then tap Complete.")
+                } else {
+                    ListRow(Icons.Filled.Pin, "Share your PIN only on arrival", "The professional needs your 4-digit PIN to start the job.")
+                    ListRow(Icons.Filled.Payments, "Pay after the service", "Pay by Cash or UPI only when the job is done.")
+                    ListRow(Icons.Filled.ReportProblem, "Something went wrong?", "Open the booking and tap \"Report a problem\".")
+                }
+            }
+
+            // Account
+            AppCard {
+                ListRow(
+                    Icons.AutoMirrored.Filled.Logout, "Log out", null,
+                    color = MaterialTheme.colorScheme.error,
+                    onClick = { showLogout = true },
+                )
+            }
+            Caption("ServiceHub version ${version ?: "1.0"}", modifier = Modifier.align(Alignment.CenterHorizontally))
         }
-        OutlinedButton(
-            onClick = {
+    }
+
+    if (showLogout) {
+        ConfirmDialog(
+            title = "Log out?",
+            message = "You can log in again any time with your email and password.",
+            confirmText = "Log out",
+            onConfirm = {
+                showLogout = false
                 viewModel.logout()
                 onLoggedOut()
             },
-            modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) {
-            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null)
-            Text("  Log out")
-        }
-
-        // App version, read from the installed app (versionName in app/build.gradle.kts)
-        val context = LocalContext.current
-        val version = remember {
-            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
-        }
-        Text("ServiceHub version ${version ?: "1.0"}", style = MaterialTheme.typography.labelSmall)
+            onDismiss = { showLogout = false },
+        )
     }
 }

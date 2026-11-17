@@ -15,6 +15,12 @@ import com.example.servicehub.data.model.isRequestExpired
 import com.example.servicehub.data.model.isAcceptedOverdue
 import com.example.servicehub.data.model.isTopRated
 import com.example.servicehub.data.model.isOffOn
+import com.example.servicehub.data.model.nextWorkingDay
+import com.example.servicehub.ui.common.notificationStyle
+import com.example.servicehub.ui.customer.MyBookingsViewModel
+import com.example.servicehub.ui.theme.StatusAccepted
+import com.example.servicehub.ui.theme.StatusCompleted
+import com.example.servicehub.ui.theme.StatusRejected
 import com.example.servicehub.ui.admin.userMatches
 import com.example.servicehub.ui.components.avatarColorIndex
 import com.example.servicehub.ui.components.receiptShareText
@@ -59,8 +65,8 @@ class LogicTest {
 
     @Test
     fun rating_showsNewWhenNoReviews() {
-        assertEquals("★ New", ratingText(0.0, 0))
-        assertEquals("★ 4.5 (2)", ratingText(4.5, 2))
+        assertEquals("New", ratingText(0.0, 0))
+        assertEquals("4.5 (2)", ratingText(4.5, 2))
     }
 
     // ------------------------------------------------ booking status
@@ -430,6 +436,52 @@ class LogicTest {
         assertEquals(298, week.last().second)        // today
         assertEquals(50, week[5].second)             // yesterday
         assertEquals(348, week.sumOf { it.second })
+    }
+
+    // ------------------------------------------------ UI-round logic
+
+    @Test
+    fun workToday_opensOneDayOffOnly() {
+        // Tuesday off, but chose to work on Tue 2026-11-17 only
+        val p = Provider(offDays = listOf(3), extraWorkDates = listOf("2026-11-17"))
+        assertFalse(isOffOn(p, "2026-11-17"))                       // working this Tuesday
+        assertTrue(isOffOn(p, "2026-11-24"))                        // next Tuesday still off
+        assertEquals("2026-11-18", nextWorkingDay(Provider(offDays = listOf(3)), listOf("2026-11-17", "2026-11-18")))
+    }
+
+    @Test
+    fun myBookings_groupedTodayUpcomingAttention() {
+        val today = "2026-11-20"
+        val list = listOf(
+            Booking(id = "t", status = "ACCEPTED", date = today),
+            Booking(id = "u", status = "REQUESTED", date = "2026-11-22"),
+            Booking(id = "o", status = "ACCEPTED", date = "2026-11-18"),
+        )
+        val groups = MyBookingsViewModel.groupActive(list, today)
+        assertEquals(listOf("Today", "Upcoming", "Needs attention"), groups.map { it.first })
+        assertEquals("t", groups[0].second.single().id)
+    }
+
+    @Test
+    fun adminCharts_countPerDayAndRevenuePerCategory() {
+        val now = System.currentTimeMillis()
+        val bookings = listOf(
+            Booking(createdAt = now, status = "COMPLETED", categoryId = "plumber", totalAmount = 198),
+            Booking(createdAt = now, status = "COMPLETED", categoryId = "plumber", totalAmount = 348),
+            Booking(createdAt = now, status = "COMPLETED", categoryId = "painter", totalAmount = 548),
+            Booking(createdAt = now, status = "CANCELLED", categoryId = "painter", totalAmount = 999),   // not revenue
+        )
+        assertEquals(4, DashboardStats.bookingsPerDay(bookings, now).last().second)
+        val revenue = DashboardStats.revenueByCategory(bookings)
+        assertEquals(listOf("Painter" to 548, "Plumber" to 546), revenue)
+    }
+
+    @Test
+    fun notifications_getTheRightIconColour() {
+        assertEquals(StatusRejected, notificationStyle("Booking rejected").second)
+        assertEquals(StatusRejected, notificationStyle("Account not approved").second)
+        assertEquals(StatusAccepted, notificationStyle("Account approved").second)
+        assertEquals(StatusCompleted, notificationStyle("Job completed").second)
     }
 
     @Test
