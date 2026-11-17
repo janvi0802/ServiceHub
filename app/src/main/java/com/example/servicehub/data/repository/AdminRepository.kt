@@ -1,5 +1,8 @@
 package com.example.servicehub.data.repository
 
+import com.example.servicehub.data.Category
+import com.example.servicehub.data.CategoryDoc
+import com.example.servicehub.data.CategoryStore
 import com.example.servicehub.data.SampleData
 import com.example.servicehub.data.await
 import com.example.servicehub.data.liveList
@@ -74,6 +77,23 @@ object AdminRepository {
     suspend fun updateService(serviceId: String, price: Int, description: String) {
         db.collection("services").document(serviceId)
             .update(mapOf("price" to price, "description" to description)).await()
+    }
+
+    /** Admin adds a whole new category, e.g. "Yoga Teacher" with the yoga icon. Goes after the others. */
+    suspend fun addCategory(name: String, iconKey: String, colorHex: Long) {
+        val ref = db.collection("categories").document()
+        val nextOrder = (CategoryStore.all.value.maxOfOrNull { it.order } ?: 0) + 1
+        ref.set(CategoryDoc(id = ref.id, name = name, iconKey = iconKey, colorHex = colorHex, isActive = true, order = nextOrder)).await()
+    }
+
+    /**
+     * Hide or show a category. For a built-in one (e.g. "painter") this creates its document
+     * the first time, with the same name/icon/colour, so only isActive changes.
+     */
+    suspend fun setCategoryActive(category: Category, active: Boolean) {
+        db.collection("categories").document(category.id).set(
+            CategoryDoc(category.id, category.name, category.iconKey, category.colorHex, active, category.order)
+        ).await()
     }
 
     /** Admin adds a brand-new service (e.g. "Geyser repair") to a category. */

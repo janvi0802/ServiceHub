@@ -42,6 +42,8 @@ erDiagram
     USERS ||--o{ BOOKINGS : "customerId"
     PROVIDERS ||--o{ BOOKINGS : "providerId"
     SERVICES ||--o{ BOOKINGS : "serviceId"
+    CATEGORIES ||--o{ SERVICES : "categoryId"
+    CATEGORIES ||--o{ PROVIDERS : "categoryId"
     BOOKINGS ||--o| REVIEWS : "review id = booking id"
     BOOKINGS ||--o| SLOTS : "active booking holds one slot"
     BOOKINGS ||--o{ COMPLAINTS : "reported problems"
@@ -120,6 +122,14 @@ erDiagram
         string message
         string status "OPEN | RESOLVED"
     }
+    CATEGORIES {
+        string id PK "built-in (plumber...) or new"
+        string name
+        string iconKey "yoga, beauty, tutor..."
+        long colorHex
+        bool isActive
+        int order
+    }
     SLOTS {
         string id PK "providerId_date_slotNumber"
         string providerId FK
@@ -136,7 +146,9 @@ a provider's slot. It is created in the same transaction as the booking and dele
 booking is rejected, cancelled or completed (or moved when rescheduled). It contains no address
 or phone numbers, so bookings themselves stay private.
 
-Categories, areas and time slots are fixed lists in Kotlin code (`FixedData.kt`).
+Areas and time slots are fixed lists in Kotlin code (`FixedData.kt`). Categories start with 6
+built-in defaults in code; the admin can add new ones (e.g. Yoga Teacher) or hide any, stored in
+`categories` and merged live by `CategoryStore`, so the platform can grow without an app update.
 Names and phones are copied into each booking, so a booking still shows correct details even if
 someone later edits their profile.
 

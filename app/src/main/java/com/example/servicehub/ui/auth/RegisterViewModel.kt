@@ -14,7 +14,8 @@ import kotlinx.coroutines.launch
 
 /** Everything the register form shows. Provider-only fields are used when role = provider. */
 data class RegisterUiState(
-    val role: String = Roles.CUSTOMER,
+    /** null = not chosen yet (step 1). Nothing is pre-selected, so nobody registers as the wrong type. */
+    val role: String? = null,
     val name: String = "",
     val email: String = "",
     val phone: String = "",
@@ -37,7 +38,8 @@ class RegisterViewModel : ViewModel() {
     val uiState: StateFlow<RegisterUiState> = _uiState
 
     /** One small function per field: copy the state with the new value and clear old errors. */
-    fun onRoleChange(v: String) = _uiState.update { it.copy(role = v, error = null) }
+    /** Step 1 -> step 2 (or back to step 1 with null, via "Change"). */
+    fun onRoleChange(v: String?) = _uiState.update { it.copy(role = v, error = null) }
     fun onNameChange(v: String) = _uiState.update { it.copy(name = v, error = null) }
     fun onEmailChange(v: String) = _uiState.update { it.copy(email = v, error = null) }
     fun onPhoneChange(v: String) = _uiState.update { it.copy(phone = v.filter(Char::isDigit).take(10), error = null) }
@@ -50,6 +52,7 @@ class RegisterViewModel : ViewModel() {
 
     /** Returns an error message if something is missing or wrong, or null if the form is OK. */
     private fun validate(s: RegisterUiState): String? = when {
+        s.role == null -> "Please choose how you will use ServiceHub."
         s.name.isBlank() -> "Please enter your name."
         !s.email.contains("@") || !s.email.contains(".") -> "Please enter a valid email."
         s.phone.length != 10 -> "Phone number must be 10 digits."
@@ -70,8 +73,14 @@ class RegisterViewModel : ViewModel() {
 
         // Providers send extra details; customers send null.
         val providerDetails = if (s.role == Roles.PROVIDER) {
+            // firstOrNull: the admin might have hidden the category a moment ago
+            val category = FixedData.categories.firstOrNull { it.name == s.categoryName }
+            if (category == null) {
+                _uiState.update { it.copy(error = "Please choose your service category again.") }
+                return
+            }
             ProviderDetails(
-                categoryId = FixedData.categories.first { it.name == s.categoryName }.id,
+                categoryId = category.id,
                 experienceYears = s.experienceYears.toInt(),
                 bio = s.bio.trim(),
             )
@@ -83,7 +92,7 @@ class RegisterViewModel : ViewModel() {
                 AuthRepository.register(
                     name = s.name.trim(), email = s.email.trim(), password = s.password,
                     phone = s.phone, area = s.area, address = s.address.trim(),
-                    role = s.role, providerDetails = providerDetails,
+                    role = s.role ?: Roles.CUSTOMER, providerDetails = providerDetails,
                 )
                 // After registering, Firebase has already logged the person in.
                 val destination = AuthRepository.findHomeDestination()

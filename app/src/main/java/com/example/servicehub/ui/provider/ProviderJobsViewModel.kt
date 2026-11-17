@@ -77,6 +77,21 @@ class ProviderJobsViewModel : ViewModel() {
 
         fun history(all: List<Booking>) = all.filter { !it.isOpen }
 
+        /** The soonest accepted / in-progress job (what the provider should do next). */
+        fun nextJob(all: List<Booking>): Booking? = upcoming(all).firstOrNull()
+
+        /**
+         * Earnings for each of the last 7 days (oldest first), e.g. [("Mon", 0), ... ("Sun", 198)].
+         * A job counts on the day it was completed.
+         */
+        fun earningsLast7Days(all: List<Booking>, now: Long = System.currentTimeMillis()): List<Pair<String, Int>> {
+            val completed = all.filter { it.bookingStatus == BookingStatus.COMPLETED && it.completedAt > 0 }
+            return DateUtils.lastDays(7, now).map { day ->
+                val label = DateUtils.weekdayShortNames[(DateUtils.weekdayOf(day) - 1).coerceIn(0, 6)]
+                label to completed.filter { DateUtils.dateOf(it.completedAt) == day }.sumOf { it.totalAmount }
+            }
+        }
+
         fun todaysEarnings(all: List<Booking>) = all
             .filter { it.bookingStatus == BookingStatus.COMPLETED && DateUtils.isToday(it.completedAt) }
             .sumOf { it.totalAmount }

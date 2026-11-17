@@ -5,17 +5,22 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
@@ -28,24 +33,33 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.servicehub.data.Category
+import com.example.servicehub.data.CategoryStore
 import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.Service
+import com.example.servicehub.data.model.User
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.BookingRepository
 import com.example.servicehub.data.repository.ServiceRepository
 import com.example.servicehub.data.repository.UserRepository
+import com.example.servicehub.ui.components.Avatar
 import com.example.servicehub.ui.components.BookingStatusChip
 import com.example.servicehub.ui.components.rupees
+import com.example.servicehub.ui.theme.BrandBlue
+import com.example.servicehub.ui.theme.BrandBlueDark
 import com.example.servicehub.ui.theme.BrandOrange
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,25 +68,27 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/** One "Book again" shortcut: a provider + service the customer used before. */
+data class BookAgainItem(val providerId: String, val providerName: String, val serviceId: String, val serviceName: String)
+
 class CustomerHomeViewModel : ViewModel() {
     private val uid = AuthRepository.currentUserId.orEmpty()
 
-    val firstName = MutableStateFlow("")
+    /** The customer (for the greeting and the area in the header). */
+    val user = MutableStateFlow<User?>(null)
 
-    /** All services (for the "from ₹" prices on the tiles). */
+    /** All services (for "from ₹" prices and quick picks). */
     val services: StateFlow<List<Service>> = ServiceRepository.allServices()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** The customer's bookings, live (for the upcoming card and the rate reminder). */
+    /** The customer's bookings, live (next booking, rate reminder, book again). */
     val bookings: StateFlow<List<Booking>> = BookingRepository.customerBookings(uid)
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        viewModelScope.launch {
-            firstName.value = runCatching { UserRepository.getUser(uid)?.name?.substringBefore(" ") }.getOrNull().orEmpty()
-        }
+        viewModelScope.launch { user.value = runCatching { UserRepository.getUser(uid) }.getOrNull() }
     }
 
     companion object {
@@ -97,79 +113,213 @@ class CustomerHomeViewModel : ViewModel() {
         /** Cheapest visible price per category id, for "from ₹149". */
         fun minPriceByCategory(services: List<Service>): Map<String, Int> =
             services.filter { it.isActive }.groupBy { it.categoryId }.mapValues { (_, list) -> list.minOf { it.price } }
+
+        /** "Quick picks": the cheapest visible service of each visible category, in category order. */
+        fun quickPicks(services: List<Service>, categories: List<Category>): List<Service> =
+            categories.filter { it.isActive }.mapNotNull { c ->
+                services.filter { it.isActive && it.categoryId == c.id }.minByOrNull { it.price }
+            }
+
+        /** Up to 5 different provider + service pairs from completed bookings, newest first. */
+        fun bookAgain(bookings: List<Booking>): List<BookAgainItem> =
+            bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }
+                .sortedByDescending { it.completedAt }
+                .map { BookAgainItem(it.providerId, it.providerName, it.serviceId, it.serviceName) }
+                .distinctBy { it.providerId to it.serviceId }
+                .take(5)
     }
 }
 
-/** Customer home: greeting, search, next booking, rate reminder and the 6 category tiles. */
+/** Customer home: header, trust, next booking, reminders, shortcuts and categories. */
 @Composable
 fun CustomerHomeScreen(
     onOpenSearch: () -> Unit,
     onOpenCategory: (String) -> Unit,
     onOpenBooking: (String) -> Unit,
     onRate: (String) -> Unit,
+    onOpenService: (categoryId: String, serviceId: String) -> Unit,
+    onOpenProvider: (providerId: String, serviceId: String) -> Unit,
     viewModel: CustomerHomeViewModel = viewModel(),
 ) {
-    val firstName by viewModel.firstName.collectAsState()
+    val user by viewModel.user.collectAsState()
     val services by viewModel.services.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
+    val allCategories by CategoryStore.all.collectAsState()   // live: admin-added categories appear here
+    val categories = allCategories.filter { it.isActive }
 
     val upcoming = CustomerHomeViewModel.nextUpcoming(bookings)
     val toRate = CustomerHomeViewModel.rateReminder(bookings)
     val fromPrice = CustomerHomeViewModel.minPriceByCategory(services)
+    val quickPicks = CustomerHomeViewModel.quickPicks(services, allCategories)
+    val bookAgain = CustomerHomeViewModel.bookAgain(bookings)
+    val isNewCustomer = bookings.isEmpty()
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Full-width items span all 3 columns
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.padding(top = 20.dp)) {
-                Text(
-                    if (firstName.isBlank()) "Hello 👋" else "Hello, $firstName 👋",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text("What service do you need today?", style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) { SearchBarButton(onOpenSearch) }
+        fullWidth { HomeHeader(user, onOpenSearch) }
+        fullWidth { TrustStrip() }
 
         if (upcoming != null) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                UpcomingCard(upcoming, onClick = { onOpenBooking(upcoming.id) })
-            }
+            fullWidth { Padded { UpcomingCard(upcoming, onClick = { onOpenBooking(upcoming.id) }) } }
         }
         if (toRate != null) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                RateReminderCard(toRate, onClick = { onRate(toRate.id) })
+            fullWidth { Padded { RateReminderCard(toRate, onClick = { onRate(toRate.id) }) } }
+        }
+        if (isNewCustomer) {
+            fullWidth { Padded { HowItWorks() } }
+        }
+        if (bookAgain.isNotEmpty()) {
+            fullWidth { SectionTitle("Book again") }
+            fullWidth {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(bookAgain, key = { it.providerId + it.serviceId }) { item ->
+                        BookAgainCard(item, onClick = { onOpenProvider(item.providerId, item.serviceId) })
+                    }
+                }
+            }
+        }
+        if (quickPicks.isNotEmpty()) {
+            fullWidth { SectionTitle("Quick picks") }
+            fullWidth {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(quickPicks, key = { it.id }) { service ->
+                        QuickPickCard(service, onClick = { onOpenService(service.categoryId, service.id) })
+                    }
+                }
             }
         }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text("Categories", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        }
-        items(FixedData.categories) { category ->
-            CategoryTile(category, fromPrice[category.id], onClick = { onOpenCategory(category.id) })
+        fullWidth { SectionTitle("All categories") }
+        // Rows of 3 equal tiles (an empty space fills the last row if needed)
+        categories.chunked(3).forEach { row ->
+            item(key = "row_" + row.joinToString { it.id }) {
+                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.forEach { category ->
+                        Box(Modifier.weight(1f)) {
+                            CategoryTile(category, fromPrice[category.id], onClick = { onOpenCategory(category.id) })
+                        }
+                    }
+                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
         }
     }
 }
 
-/** Looks like a search box; tapping it opens the Search screen. */
+// ----------------------------------------------------------------- small layout helpers
+
+private fun LazyListScope.fullWidth(content: @Composable () -> Unit) {
+    item { content() }
+}
+
 @Composable
-private fun SearchBarButton(onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(2.dp),
+private fun Padded(content: @Composable () -> Unit) {
+    Box(Modifier.padding(horizontal = 16.dp)) { content() }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+    )
+}
+
+// ----------------------------------------------------------------- header + trust
+
+/** Blue gradient header: greeting, the customer's area, and the search box. */
+@Composable
+private fun HomeHeader(user: User?, onOpenSearch: () -> Unit) {
+    val firstName = user?.name?.substringBefore(" ").orEmpty()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .background(Brush.verticalGradient(listOf(BrandBlue, BrandBlueDark)))
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Search, contentDescription = null)
-            Text("  Search services or categories", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (firstName.isBlank()) "Hello 👋" else "Hello, $firstName 👋",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+        )
+        if (!user?.area.isNullOrBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.LocationOn, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Text(" ${user?.area}", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        Text("What service do you need today?", color = Color.White.copy(alpha = 0.9f))
+        // Search box (tapping opens the Search screen)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White)
+                .clickable(onClick = onOpenSearch)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = null, tint = Color.Gray)
+            Text("  Search services or categories", color = Color.Gray)
         }
     }
 }
+
+/** Three reasons to trust ServiceHub, always visible. */
+@Composable
+private fun TrustStrip() {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        TrustItem("✔", "Verified pros")
+        TrustItem("🔒", "Start PIN")
+        TrustItem("₹", "Fixed prices")
+    }
+}
+
+@Composable
+private fun TrustItem(symbol: String, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(symbol, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Text(" $label", style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+/** 4 simple steps, shown only until the customer has made a first booking. */
+@Composable
+private fun HowItWorks() {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("How ServiceHub works", fontWeight = FontWeight.Bold)
+            listOf(
+                "1" to "Choose a service and a verified provider",
+                "2" to "Pick a date and time slot",
+                "3" to "Share your 4-digit PIN when they arrive",
+                "4" to "Pay by Cash or UPI after the job",
+            ).forEach { (n, text) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Text(n, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
+                    Text("  $text", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------- cards
 
 /** "Your next booking" with status and, once accepted, the PIN. */
 @Composable
@@ -212,6 +362,36 @@ private fun RateReminderCard(booking: Booking, onClick: () -> Unit) {
 }
 
 @Composable
+private fun BookAgainCard(item: BookAgainItem, onClick: () -> Unit) {
+    Card(Modifier.width(150.dp).clickable(onClick = onClick)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Avatar(item.providerName, 40.dp)
+            Text(item.providerName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(item.serviceName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Book again →", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun QuickPickCard(service: Service, onClick: () -> Unit) {
+    val category = FixedData.categoryById(service.categoryId)
+    Card(Modifier.width(150.dp).clickable(onClick = onClick)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (category != null) {
+                Box(
+                    Modifier.size(40.dp).background(category.color.copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(category.icon, contentDescription = null, tint = category.color, modifier = Modifier.size(22.dp)) }
+            }
+            Text(service.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("~${service.durationMins} min", style = MaterialTheme.typography.bodySmall)
+            Text(rupees(service.price), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
 private fun CategoryTile(category: Category, fromPrice: Int?, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -233,11 +413,14 @@ private fun CategoryTile(category: Category, fromPrice: Int?, onClick: () -> Uni
                 category.name,
                 style = MaterialTheme.typography.labelLarge,
                 textAlign = TextAlign.Center,
+                maxLines = 2,
                 modifier = Modifier.padding(top = 8.dp),
             )
-            if (fromPrice != null) {
-                Text("from ${rupees(fromPrice)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(
+                if (fromPrice != null) "from ${rupees(fromPrice)}" else "coming soon",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

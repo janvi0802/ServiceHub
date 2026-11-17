@@ -19,6 +19,21 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import com.example.servicehub.data.DateUtils
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.example.servicehub.data.FixedData
+import com.example.servicehub.ui.components.BookingStatusChip
+import com.example.servicehub.ui.components.openDialer
+import com.example.servicehub.ui.components.openMaps
+import com.example.servicehub.ui.theme.BrandOrange
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -60,13 +75,60 @@ fun ProviderHomeScreen(
     }
     val today = ProviderJobsViewModel.todaysJobs(all)
     val requestCount = ProviderJobsViewModel.newRequests(all).size
+    val nextJob = ProviderJobsViewModel.nextJob(all)
+    val week = ProviderJobsViewModel.earningsLast7Days(all)
+    val context = LocalContext.current
 
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Orange gradient header: name, rating, verified
         item {
-            Text("Hello, ${p.name.substringBefore(" ")} 👋", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Column(
+                Modifier
+                    .padding(top = 12.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.verticalGradient(listOf(BrandOrange, Color(0xFFE65100))))
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text("Hello, ${p.name.substringBefore(" ")} 👋", style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold, color = Color.White)
+                Text(
+                    "${FixedData.categoryById(p.categoryId)?.name.orEmpty()} • ${p.area}",
+                    color = Color.White.copy(alpha = 0.9f),
+                )
+                Text(
+                    "✔ Verified   ${ratingText(p.ratingAvg, p.ratingCount)}   ${p.jobsCompleted} jobs",
+                    color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        // What to do next
+        if (nextJob != null) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth().clickable { onJobClick(nextJob.id) },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Next job", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                            BookingStatusChip(nextJob)
+                        }
+                        Text(nextJob.serviceName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("${nextJob.customerName} • ${DateUtils.pretty(nextJob.date)}, ${nextJob.timeSlot}",
+                            style = MaterialTheme.typography.bodySmall)
+                        Text(nextJob.address, style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { openDialer(context, nextJob.customerPhone) }) { Text("Call") }
+                            OutlinedButton(onClick = { openMaps(context, nextJob.address) }) { Text("Open in Maps") }
+                        }
+                    }
+                }
+            }
         }
         // Availability switch
         item {
@@ -141,6 +203,8 @@ fun ProviderHomeScreen(
                 StatCard("Rating", ratingText(p.ratingAvg, p.ratingCount), Modifier.weight(1f))
             }
         }
+        // This week's earnings as 7 simple bars (no chart library needed)
+        item { WeekChart(week) }
         // Today's jobs
         item {
             Text("Today's jobs (${today.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -167,6 +231,43 @@ fun ProviderHomeScreen(
                         Text("★".repeat(stars) + "☆".repeat(5 - stars), color = MaterialTheme.colorScheme.secondary)
                     }
                     if (review.comment.isNotBlank()) Text(review.comment, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A tiny bar chart: one bar per day, its height proportional to that day's earnings.
+ * Built from plain Boxes, so it needs no library.
+ */
+@Composable
+private fun WeekChart(days: List<Pair<String, Int>>) {
+    val max = days.maxOfOrNull { it.second }?.takeIf { it > 0 } ?: 1
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text("This week: ${rupees(days.sumOf { it.second })}", fontWeight = FontWeight.Bold)
+            Row(
+                Modifier.fillMaxWidth().height(120.dp).padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                days.forEachIndexed { index, (label, amount) ->
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (amount > 0) Text("${amount}", style = MaterialTheme.typography.labelSmall)
+                        Box(
+                            Modifier
+                                .width(18.dp)
+                                // at least a thin line, so empty days are still visible
+                                .height((70f * amount / max).dp.coerceAtLeast(3.dp))
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (index == days.lastIndex) BrandOrange   // today
+                                    else MaterialTheme.colorScheme.primary.copy(alpha = if (amount > 0) 0.8f else 0.2f)
+                                )
+                        )
+                        Text(label, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.example.servicehub
 
+import com.example.servicehub.data.CategoryDoc
+import com.example.servicehub.data.CategoryStore
 import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.SampleData
@@ -376,6 +378,58 @@ class LogicTest {
         assertTrue(userMatches(u, "TEST.COM"))
         assertTrue(userMatches(u, "98765"))
         assertFalse(userMatches(u, "ramesh"))
+    }
+
+    // ------------------------------------------------ admin-managed categories
+
+    @Test
+    fun categories_mergeBuiltInWithAdminChanges() {
+        val docs = listOf(
+            CategoryDoc(id = "painter", name = "Painter", iconKey = "paint", colorHex = 0xFFD81B60, isActive = false, order = 6), // hidden
+            CategoryDoc(id = "abc", name = "Yoga Teacher", iconKey = "yoga", colorHex = 0xFF43A047, isActive = true, order = 7),   // new
+            CategoryDoc(id = "", name = "Broken"),                                                                              // ignored
+        )
+        val merged = CategoryStore.merge(FixedData.defaultCategories, docs)
+        assertEquals(7, merged.size)                                    // 6 built-in + 1 new
+        assertFalse(merged.first { it.id == "painter" }.isActive)      // admin hid it
+        assertEquals("Yoga Teacher", merged.last().name)                // new one goes last (order 7)
+        // with no Firestore documents, the built-in list is unchanged
+        assertEquals(FixedData.defaultCategories, CategoryStore.merge(FixedData.defaultCategories, emptyList()))
+    }
+
+    @Test
+    fun customerHome_quickPicksAndBookAgain() {
+        val picks = CustomerHomeViewModel.quickPicks(SampleData.services, FixedData.defaultCategories)
+        assertEquals(6, picks.size)                                     // one per category
+        assertEquals("Tap repair", picks.first().name)                  // cheapest plumber service
+
+        val again = CustomerHomeViewModel.bookAgain(
+            listOf(
+                Booking(providerId = "p1", serviceId = "s1", status = "COMPLETED", completedAt = 1),
+                Booking(providerId = "p1", serviceId = "s1", status = "COMPLETED", completedAt = 2),   // same pair -> once
+                Booking(providerId = "p2", serviceId = "s1", status = "COMPLETED", completedAt = 3),
+                Booking(providerId = "p3", serviceId = "s1", status = "CANCELLED", completedAt = 4),   // not completed
+            )
+        )
+        assertEquals(listOf("p2", "p1"), again.map { it.providerId })
+    }
+
+    @Test
+    fun providerWeekChart_countsEarningsPerDay() {
+        val now = System.currentTimeMillis()
+        val oneDay = 24L * 60 * 60 * 1000
+        val jobs = listOf(
+            Booking(status = "COMPLETED", completedAt = now, totalAmount = 198),
+            Booking(status = "COMPLETED", completedAt = now, totalAmount = 100),
+            Booking(status = "COMPLETED", completedAt = now - oneDay, totalAmount = 50),
+            Booking(status = "COMPLETED", completedAt = now - 10 * oneDay, totalAmount = 999),   // too old
+            Booking(status = "CANCELLED", completedAt = now, totalAmount = 500),                // not earned
+        )
+        val week = ProviderJobsViewModel.earningsLast7Days(jobs, now)
+        assertEquals(7, week.size)
+        assertEquals(298, week.last().second)        // today
+        assertEquals(50, week[5].second)             // yesterday
+        assertEquals(348, week.sumOf { it.second })
     }
 
     @Test

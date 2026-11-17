@@ -48,6 +48,19 @@ import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.Service
 import com.example.servicehub.data.model.User
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
+import com.example.servicehub.data.Category
+import com.example.servicehub.data.CategoryIcons
+import com.example.servicehub.data.CategoryStore
+import com.example.servicehub.data.categoryColorChoices
 import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.model.Complaint
 import com.example.servicehub.data.model.ComplaintStatus
@@ -122,8 +135,130 @@ class AdminControlViewModel : ViewModel() {
     fun addService(categoryId: String, name: String, description: String, price: Int, durationMins: Int) =
         act("$name added.") { AdminRepository.addService(categoryId, name, description, price, durationMins) }
 
+    fun addCategory(name: String, iconKey: String, colorHex: Long) =
+        act("$name added. Now add its services and let providers register.") {
+            AdminRepository.addCategory(name, iconKey, colorHex)
+        }
+
+    fun setCategoryActive(category: Category, active: Boolean) =
+        act(if (active) "${category.name} is visible." else "${category.name} is hidden (with its services).") {
+            AdminRepository.setCategoryActive(category, active)
+        }
+
     fun resolve(complaint: Complaint) =
         act("Marked as resolved. The customer has been told.") { ComplaintRepository.resolve(complaint) }
+}
+
+// ===================================================================== Categories
+
+/** Built-in and admin-added categories: hide/show, and add new ones (e.g. Yoga Teacher). */
+@Composable
+fun AdminCategoriesScreen(onBack: () -> Unit, viewModel: AdminControlViewModel = viewModel()) {
+    val categories by CategoryStore.all.collectAsState()
+    val services by viewModel.services.collectAsState()
+    var adding by rememberSaveable { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader("Categories", onBack) {
+            TextButton(onClick = { adding = true }) { Text("+ Add") }
+        }
+        MessageLine(viewModel)
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Text(
+                    "New category? Add it here, then add its services in Services. " +
+                        "Providers can then register in it.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            items(categories, key = { it.id }) { c ->
+                val serviceCount = services.orEmpty().count { it.categoryId == c.id }
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.size(44.dp).background(c.color.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(c.icon, contentDescription = null, tint = c.color) }
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(c.name, fontWeight = FontWeight.Bold)
+                            Text(
+                                "$serviceCount service(s)" + if (FixedData.defaultCategories.any { it.id == c.id }) " • built-in" else " • added by admin",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            if (serviceCount == 0) {
+                                Text("Add services so customers can book it", style = MaterialTheme.typography.labelSmall, color = StatusRequested)
+                            }
+                        }
+                        Switch(checked = c.isActive, onCheckedChange = { viewModel.setCategoryActive(c, it) })
+                    }
+                }
+            }
+        }
+    }
+
+    if (adding) {
+        AddCategoryDialog(
+            existingNames = categories.map { it.name.lowercase() },
+            onSave = { name, iconKey, color ->
+                viewModel.addCategory(name, iconKey, color)
+                adding = false
+            },
+            onDismiss = { adding = false },
+        )
+    }
+}
+
+/** Name + icon + colour for a new category. Names must be unique. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AddCategoryDialog(
+    existingNames: List<String>,
+    onSave: (String, String, Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var iconKey by remember { mutableStateOf("other") }
+    var color by remember { mutableStateOf(categoryColorChoices.first()) }
+    val trimmed = name.trim()
+    val duplicate = trimmed.lowercase() in existingNames
+    val valid = trimmed.length >= 3 && !duplicate
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add category") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                TextInput(name, { name = it.take(25) }, "Name, e.g. Yoga Teacher")
+                if (duplicate) Text("A category with this name already exists.", color = MaterialTheme.colorScheme.error)
+                Text("Icon", fontWeight = FontWeight.Bold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CategoryIcons.all.forEach { (key, icon) ->
+                        val selected = key == iconKey
+                        Box(
+                            Modifier
+                                .size(40.dp)
+                                .background(if (selected) Color(color).copy(alpha = 0.25f) else Color(0x11000000), CircleShape)
+                                .clickable { iconKey = key },
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(icon, contentDescription = key, tint = if (selected) Color(color) else Color.Gray) }
+                    }
+                }
+                Text("Colour", fontWeight = FontWeight.Bold)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    categoryColorChoices.forEach { c ->
+                        Box(
+                            Modifier
+                                .size(if (c == color) 34.dp else 28.dp)
+                                .background(Color(c), CircleShape)
+                                .clickable { color = c }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(trimmed, iconKey, color) }, enabled = valid) { Text("Add") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
+    )
 }
 
 // ===================================================================== Complaints
@@ -361,24 +496,29 @@ private fun ProviderAdminCard(provider: Provider, onApprove: () -> Unit, onRejec
 // ===================================================================== Manage services
 
 @Composable
-fun AdminServicesScreen(viewModel: AdminControlViewModel = viewModel()) {
+fun AdminServicesScreen(onOpenCategories: () -> Unit, viewModel: AdminControlViewModel = viewModel()) {
     val services by viewModel.services.collectAsState()
+    val allCategories by CategoryStore.all.collectAsState()
     var editing by remember { mutableStateOf<Service?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Manage services") {
+            TextButton(onClick = onOpenCategories) { Text("Categories") }
             TextButton(onClick = { adding = true }) { Text("+ Add") }
         }
         MessageLine(viewModel)
         ListOrState(services, "No services yet. Use \"Load sample data\" on the Dashboard.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Grouped by category, in the same order as the customer home screen
-                FixedData.categories.forEach { category ->
+                // Grouped by category (hidden categories too, so the admin can still edit them)
+                allCategories.forEach { category ->
                     val inCategory = list.filter { it.categoryId == category.id }.sortedBy { it.price }
                     if (inCategory.isNotEmpty()) {
                         item(key = "cat_${category.id}") {
-                            Text(category.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                category.name + if (!category.isActive) " (hidden)" else "",
+                                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                            )
                         }
                         items(inCategory, key = { it.id }) { service ->
                             ServiceAdminCard(
@@ -463,7 +603,8 @@ private fun EditServiceDialog(service: Service, onSave: (Int, String) -> Unit, o
 /** New service: category, name, description, price (₹1–1,00,000) and duration (5–600 minutes). */
 @Composable
 private fun AddServiceDialog(onSave: (String, String, String, Int, Int) -> Unit, onDismiss: () -> Unit) {
-    var categoryName by remember { mutableStateOf(FixedData.categories.first().name) }
+    val categories = CategoryStore.all.collectAsState().value   // includes admin-added ones
+    var categoryName by remember { mutableStateOf(categories.first().name) }
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
@@ -478,7 +619,7 @@ private fun AddServiceDialog(onSave: (String, String, String, Int, Int) -> Unit,
         title = { Text("Add service") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                DropdownField("Category", FixedData.categories.map { it.name }, categoryName, { categoryName = it })
+                DropdownField("Category", categories.map { it.name }, categoryName, { categoryName = it })
                 TextInput(name, { name = it.take(40) }, "Name, e.g. Geyser repair")
                 TextInput(description, { description = it.take(120) }, "Short description", singleLine = false)
                 TextInput(priceText, { priceText = it.filter(Char::isDigit).take(6) }, "Price (₹)", keyboardType = KeyboardType.Number)
@@ -489,7 +630,7 @@ private fun AddServiceDialog(onSave: (String, String, String, Int, Int) -> Unit,
         confirmButton = {
             TextButton(
                 onClick = {
-                    val categoryId = FixedData.categories.first { it.name == categoryName }.id
+                    val categoryId = categories.first { it.name == categoryName }.id
                     onSave(categoryId, name.trim(), description.trim(), price ?: 0, minutes ?: 0)
                 },
                 enabled = valid,

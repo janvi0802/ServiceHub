@@ -1,5 +1,12 @@
 package com.example.servicehub.ui.auth
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import com.example.servicehub.ui.theme.BrandBlue
+import com.example.servicehub.ui.theme.BrandBlueDark
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -52,12 +59,16 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            Icons.Filled.HomeRepairService,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(64.dp),
-        )
+        // Brand logo: white icon in a blue gradient circle (same colours as the app icon)
+        Box(
+            Modifier
+                .size(96.dp)
+                .background(Brush.linearGradient(listOf(BrandBlue, BrandBlueDark)), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.HomeRepairService, contentDescription = null, tint = Color.White, modifier = Modifier.size(52.dp))
+        }
+        Spacer(Modifier.height(12.dp))
         Text("Welcome to ServiceHub", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Log in to continue", style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(24.dp))

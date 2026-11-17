@@ -28,6 +28,7 @@ import com.example.servicehub.data.repository.ProviderRepository
 import com.example.servicehub.data.model.ApprovalStatus
 import com.example.servicehub.ui.admin.AdminAllProvidersScreen
 import com.example.servicehub.ui.admin.AdminBookingsScreen
+import com.example.servicehub.ui.admin.AdminCategoriesScreen
 import com.example.servicehub.ui.admin.AdminComplaintsScreen
 import com.example.servicehub.ui.admin.AdminDashboardScreen
 import com.example.servicehub.ui.admin.AdminServicesScreen
@@ -37,6 +38,9 @@ import com.example.servicehub.ui.common.ReceiptScreen
 import com.example.servicehub.ui.customer.RateReviewScreen
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import com.example.servicehub.data.repository.BookingRepository
+import com.example.servicehub.ui.provider.ProviderJobsViewModel
 import com.example.servicehub.ui.admin.PendingProvidersScreen
 import com.example.servicehub.ui.auth.LoginScreen
 import com.example.servicehub.ui.auth.RegisterScreen
@@ -104,6 +108,16 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
     }
     val unreadCount by unreadFlow.collectAsState(initial = 0)
 
+    // Providers: live number of new requests, shown as a badge on the Jobs tab.
+    val requestsFlow = remember(userId, role) {
+        if (userId == null || role != Roles.PROVIDER) flowOf(0)
+        else BookingRepository.providerBookings(userId)
+            .map { ProviderJobsViewModel.newRequests(it).size }
+            .catch { emit(0) }
+    }
+    val requestCount by requestsFlow.collectAsState(initial = 0)
+    val badges = mapOf(Routes.NOTIFICATIONS to unreadCount, Routes.PROVIDER_REQUESTS to requestCount)
+
     // Watch the logged-in person's own account: if the admin blocks them, log out at once.
     val meFlow = remember(userId) {
         if (userId == null) flowOf(null) else UserRepository.liveUser(userId).catch { emit(null) }
@@ -134,7 +148,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                AppBottomBar(tabs, currentRoute, unreadCount) { route ->
+                AppBottomBar(tabs, currentRoute, badges) { route ->
                     navController.openTab(route, homeRoute = tabs.first().route)
                 }
             }
@@ -197,6 +211,12 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onOpenCategory = { categoryId -> navController.navigate(Routes.categoryServices(categoryId)) },
                     onOpenBooking = { id -> navController.navigate(Routes.bookingDetail(id)) },
                     onRate = { id -> navController.navigate(Routes.rateReview(id)) },
+                    onOpenService = { categoryId, serviceId ->
+                        navController.navigate(Routes.providerList(categoryId, serviceId))
+                    },
+                    onOpenProvider = { providerId, serviceId ->
+                        navController.navigate(Routes.providerDetail(providerId, serviceId))
+                    },
                 )
             }
             composable(Routes.SEARCH) {
@@ -326,7 +346,10 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 AdminAllProvidersScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ADMIN_USERS) { AdminUsersScreen() }
-            composable(Routes.ADMIN_SERVICES) { AdminServicesScreen() }
+            composable(Routes.ADMIN_SERVICES) {
+                AdminServicesScreen(onOpenCategories = { navController.navigate(Routes.ADMIN_CATEGORIES) })
+            }
+            composable(Routes.ADMIN_CATEGORIES) { AdminCategoriesScreen(onBack = { navController.popBackStack() }) }
             composable(Routes.ADMIN_BOOKINGS) { AdminBookingsScreen() }
             composable(Routes.ADMIN_COMPLAINTS) { AdminComplaintsScreen(onBack = { navController.popBackStack() }) }
         }

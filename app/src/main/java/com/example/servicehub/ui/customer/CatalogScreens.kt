@@ -47,7 +47,8 @@ import com.example.servicehub.ui.components.rupees
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
+import com.example.servicehub.data.CategoryStore
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -55,8 +56,12 @@ import kotlinx.coroutines.flow.stateIn
  * null = still loading.
  */
 class CatalogViewModel : ViewModel() {
-    val activeServices: StateFlow<List<Service>?> = ServiceRepository.allServices()
-        .map { list -> list.filter { it.isActive }.sortedBy { it.price } }
+    val activeServices: StateFlow<List<Service>?> =
+        combine(ServiceRepository.allServices(), CategoryStore.all) { list, categories ->
+            // Hide hidden services AND services whose whole category is hidden.
+            val visibleCategoryIds = categories.filter { it.isActive }.map { it.id }.toSet()
+            list.filter { it.isActive && it.categoryId in visibleCategoryIds }.sortedBy { it.price }
+        }
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 }

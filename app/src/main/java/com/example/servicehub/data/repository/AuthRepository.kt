@@ -100,6 +100,23 @@ object AuthRepository {
     }
 
     /**
+     * For a provider account whose providers/{uid} document is missing (e.g. the role was
+     * changed by hand): creates it now as PENDING, using the name/phone/area from users/{uid}.
+     */
+    suspend fun createMissingProviderDetails(details: ProviderDetails) {
+        val uid = currentUserId ?: throw Exception("Please log in again.")
+        val user = UserRepository.getUser(uid) ?: throw Exception("Account data not found.")
+        val provider = Provider(
+            id = uid, name = user.name, phone = user.phone,
+            categoryId = details.categoryId, area = user.area,
+            experienceYears = details.experienceYears, bio = details.bio,
+            approvalStatus = ApprovalStatus.PENDING,
+            createdAt = System.currentTimeMillis(),
+        )
+        db.collection("providers").document(uid).set(provider).await()
+    }
+
+    /**
      * Decides which home screen the logged-in person should see, based on their role.
      * Throws an Exception with a friendly message if they cannot continue (e.g. blocked).
      */

@@ -1,38 +1,45 @@
 package com.example.servicehub.data
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AcUnit
-import androidx.compose.material.icons.filled.Carpenter
-import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.ElectricalServices
-import androidx.compose.material.icons.filled.FormatPaint
-import androidx.compose.material.icons.filled.Plumbing
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /*
- * Lists that never change while the app runs, so they live in code (not in Firestore).
- * Services DO live in Firestore, because the admin can edit their prices.
+ * Lists that never change while the app runs live here in code (areas, slots, fees).
+ * Categories: the 6 below are BUILT-IN defaults. The admin can add more (e.g. Yoga Teacher)
+ * or hide any of them; those changes live in Firestore and CategoryStore merges them in.
  */
 
-/** One service category, e.g. Plumber. `id` is what we save in Firestore. [color] tints its tile and icon. */
+/**
+ * One service category, e.g. Plumber. `id` is what we save in Firestore.
+ * [iconKey] names an icon from CategoryIcons; [colorHex] tints its tile (0xAARRGGBB).
+ */
 data class Category(
     val id: String,
     val name: String,
-    val icon: ImageVector,
-    val color: Color,
-)
+    val iconKey: String,
+    val colorHex: Long,
+    val isActive: Boolean = true,
+    val order: Int = 0,
+) {
+    val icon: ImageVector get() = CategoryIcons.iconFor(iconKey)
+    val color: Color get() = Color(colorHex)
+}
 
 object FixedData {
 
-    val categories = listOf(
-        Category("plumber", "Plumber", Icons.Filled.Plumbing, Color(0xFF1E88E5)),            // blue (water)
-        Category("electrician", "Electrician", Icons.Filled.ElectricalServices, Color(0xFFF9A825)), // yellow (power)
-        Category("cleaning", "Cleaning", Icons.Filled.CleaningServices, Color(0xFF00897B)),   // teal (fresh)
-        Category("ac_repair", "AC Repair", Icons.Filled.AcUnit, Color(0xFF039BE5)),          // light blue (cool)
-        Category("carpenter", "Carpenter", Icons.Filled.Carpenter, Color(0xFF8D6E63)),       // brown (wood)
-        Category("painter", "Painter", Icons.Filled.FormatPaint, Color(0xFFD81B60)),         // pink (paint)
+    /** The built-in categories (always exist, even before anything is in Firestore). */
+    val defaultCategories = listOf(
+        Category("plumber", "Plumber", "plumbing", 0xFF1E88E5, order = 1),          // blue (water)
+        Category("electrician", "Electrician", "electric", 0xFFF9A825, order = 2),  // yellow (power)
+        Category("cleaning", "Cleaning", "cleaning", 0xFF00897B, order = 3),        // teal (fresh)
+        Category("ac_repair", "AC Repair", "ac", 0xFF039BE5, order = 4),            // light blue (cool)
+        Category("carpenter", "Carpenter", "carpenter", 0xFF8D6E63, order = 5),     // brown (wood)
+        Category("painter", "Painter", "paint", 0xFFD81B60, order = 6),             // pink (paint)
     )
+
+    /** Categories customers can see right now (built-in + admin-added, minus hidden), live. */
+    val categories: List<Category>
+        get() = CategoryStore.active()
 
     /** Areas a customer or provider can choose. */
     val areas = listOf(
@@ -75,6 +82,6 @@ object FixedData {
     /** Shown under prices so nobody is surprised at the door. */
     const val PRICE_NOTE = "Price covers labour. Spare parts, if needed, are paid separately to the provider after you agree."
 
-    /** Finds a category by its id, e.g. "plumber". Returns null if not found. */
-    fun categoryById(id: String): Category? = categories.firstOrNull { it.id == id }
+    /** Finds a category by its id, e.g. "plumber" (hidden ones too, for old bookings). Null if not found. */
+    fun categoryById(id: String): Category? = CategoryStore.byId(id)
 }

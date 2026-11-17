@@ -86,7 +86,7 @@ Chat, push notifications, photo uploads, maps/GPS, online payments, coupons, dar
 * `reviews/{id}`: bookingId, customerId, customerName, providerId, rating, comment, createdAt
 * `notifications/{id}`: userId, title, message, bookingId, isRead, createdAt
 
-Categories and areas are fixed lists in Kotlin code. Services are in Firestore so the admin can edit prices. Give me a one-time "Load sample data" button (visible only to admin) that adds all services and 2–3 approved sample providers per category. Tell me when Firestore asks for an index and how to create it with the link it gives.
+Areas are a fixed list in Kotlin code. Categories: 6 built-in defaults in code (`FixedData.defaultCategories`) plus a `categories/{id}` collection (name, iconKey, colorHex, isActive, order) where the admin adds new ones (e.g. Yoga Teacher) or hides any; `CategoryStore` merges both live. Services are in Firestore so the admin can edit prices. Other collections added later: `slots` (busy markers, double-booking protection), `complaints` (report a problem). Providers also have `offDays` (weekly days off). Give me a one-time "Load sample data" button (visible only to admin) that adds all services and 2–3 approved sample providers per category. Tell me when Firestore asks for an index and how to create it with the link it gives.
 
 ## Screens (about 22)
 

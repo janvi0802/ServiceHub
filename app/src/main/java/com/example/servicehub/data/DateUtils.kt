@@ -55,6 +55,20 @@ object DateUtils {
         return SimpleDateFormat("d MMM yyyy, h:mm a", Locale.ENGLISH).format(Date(millis))
     }
 
+    /** The last [count] dates ending today, oldest first, e.g. 7 dates for "this week" charts. */
+    fun lastDays(count: Int = 7, now: Long = System.currentTimeMillis()): List<String> {
+        val calendar = Calendar.getInstance().apply { timeInMillis = now }
+        val format = storageFormat()
+        return (0 until count).map {
+            val text = format.format(calendar.time)
+            calendar.add(Calendar.DAY_OF_YEAR, -1)
+            text
+        }.reversed()
+    }
+
+    /** Milliseconds -> "yyyy-MM-dd" (the day that moment happened). */
+    fun dateOf(millis: Long): String = storageFormat().format(Date(millis))
+
     /** Day names in Calendar order (index 0 = Sunday = Calendar day 1). */
     val weekdayShortNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 

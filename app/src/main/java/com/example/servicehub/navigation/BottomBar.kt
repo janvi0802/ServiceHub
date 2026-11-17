@@ -53,25 +53,26 @@ object BottomTabs {
  * Draws a bottom bar.
  * @param tabs which tabs to show (customer, provider or admin)
  * @param currentRoute the screen open right now, so its tab is highlighted
- * @param unreadCount number shown as a red badge on the Alerts tab (hidden when 0)
+ * @param badges red numbers per tab route, e.g. Alerts -> unread count, Jobs -> new requests (0 = hidden)
  * @param onTabClick called with the route of the tapped tab
  */
 @Composable
 fun AppBottomBar(
     tabs: List<BottomTab>,
     currentRoute: String?,
-    unreadCount: Int,
+    badges: Map<String, Int>,
     onTabClick: (String) -> Unit,
 ) {
     NavigationBar {
         tabs.forEach { tab ->
+            val count = badges[tab.route] ?: 0
             NavigationBarItem(
                 selected = currentRoute == tab.route,
                 onClick = { onTabClick(tab.route) },
                 icon = {
-                    if (tab.route == Routes.NOTIFICATIONS && unreadCount > 0) {
-                        BadgedBox(badge = { Badge { Text(if (unreadCount > 99) "99+" else "$unreadCount") } }) {
-                            Icon(tab.icon, contentDescription = "${tab.label}, $unreadCount unread")
+                    if (count > 0) {
+                        BadgedBox(badge = { Badge { Text(if (count > 99) "99+" else "$count") } }) {
+                            Icon(tab.icon, contentDescription = "${tab.label}, $count new")
                         }
                     } else {
                         Icon(tab.icon, contentDescription = tab.label)

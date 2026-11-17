@@ -88,6 +88,15 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC71 | Reschedule smart | Reschedule a booking of a provider with Sunday off | Sunday shows "· off", taken slots "· Booked", Save disabled for the same time | |
 | TC72 | Late evening | Open a booking form after 8 PM | Form starts on tomorrow (or next working day) | |
 | TC73 | Approval withdrawn | Admin → All providers → Reject an approved provider who is using the app | Provider's phone switches to "Application rejected" at once | |
+| TC74 | Register step 1 | Log out → Create an account | Two big cards; nothing selected; no form until you choose | |
+| TC75 | Register step 2 | Choose "I am a service provider" | Title "Create provider account", category field visible, button "Register as provider (…)"; "Change" goes back | |
+| TC76 | Missing provider details | (Console) set a customer's role to provider, then log in as them | "Finish your provider profile" form; after Send, admin sees them in Approvals | |
+| TC77 | New category | Admin → Services → Categories → + Add "Yoga Teacher" (yoga icon, green) | Appears on Customer Home ("coming soon") and in provider Register category list | |
+| TC78 | New category services | Admin → Services → + Add → category Yoga Teacher (e.g. Home yoga session ₹499) | Customer sees "from ₹499"; can book a Yoga provider once one is approved | |
+| TC79 | Hide category | Admin → Categories → switch off Painter | Painter tile and its services vanish for customers (also from search) | |
+| TC80 | Customer home | Customer Home | Blue header with name + area + search, trust strip, Quick picks row, "How it works" for a new customer, Book again after a completed job | |
+| TC81 | Provider home | Provider Home | Orange header, "Next job" card with Call / Open in Maps, "This week" bar chart | |
+| TC82 | Requests badge | Customer books → provider's bottom bar | Red number on the Jobs tab | |
 | TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)

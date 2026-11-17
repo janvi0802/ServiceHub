@@ -88,6 +88,16 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ------------------------------------------------------------ categories
+
+    match /categories/{categoryId} {
+      // Anyone may read categories, even before logging in (the Register screen needs
+      // them for the provider's "Service category" list). They contain nothing private.
+      allow read: if true;
+      // Only the admin adds, hides or shows categories.
+      allow write: if isAdmin();
+    }
+
     // ------------------------------------------------------------ services (catalog)
 
     match /services/{serviceId} {

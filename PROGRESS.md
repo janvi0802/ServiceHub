@@ -112,6 +112,13 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   (needed so customers can notify providers; real fix = Cloud Functions, paid plan);
   a customer could change any provider's rating fields via rules (same reason).
 
+- Growth round: admin-managed categories (built-in 6 + `categories` collection, CategoryStore,
+  21 icons, 10 colours, hide/show; hidden category hides its services), 2-step registration
+  (big role cards, nothing pre-selected, "Register as provider (X)"), "Finish your provider
+  profile" for provider accounts with no details, richer Customer Home (blue header with area +
+  search, trust strip, How it works, Quick picks, Book again), Provider Home (orange header,
+  Next job with Call/Maps, This-week bar chart), requests badge on Jobs tab, brand logo on Login.
+  Rules changed (categories) — publish again.
 - Firestore security rules PUBLISHED in the Console (test-mode expiry of 4 Dec 2026 no longer applies).
 
 ## Next step
