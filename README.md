@@ -69,6 +69,8 @@ users read only their own notifications; blocked users cannot write anything.
 
 ## Documentation
 
+- [HOW_TO_TEST.md](HOW_TO_TEST.md) – beginner guide: install Android Studio, open the project, run it on a phone, test it
+
 - [docs/REPORT_KIT.md](docs/REPORT_KIT.md) – diagrams, booking flow, future scope, viva questions
 - [docs/TEST_SCRIPT.md](docs/TEST_SCRIPT.md) – two-phone test script and test-case table
 - [PROGRESS.md](PROGRESS.md) – build progress per phase
