@@ -23,6 +23,8 @@ import com.example.servicehub.ui.theme.StatusAccepted
 import com.example.servicehub.ui.theme.StatusCompleted
 import com.example.servicehub.ui.theme.StatusRejected
 import com.example.servicehub.ui.admin.userMatches
+import com.example.servicehub.ui.admin.canSendPasswordReset
+import com.example.servicehub.ui.admin.providerIdsInCategory
 import com.example.servicehub.ui.components.avatarColorIndex
 import com.example.servicehub.ui.components.receiptShareText
 import com.example.servicehub.ui.components.timelineSteps
@@ -516,6 +518,26 @@ class LogicTest {
             Booking(id = "n", status = "COMPLETED"),
         )
         assertEquals(listOf("r"), ProviderJobsViewModel.revisits(list).map { it.id })
+    }
+
+    // ------------------------------------------------ admin filters and password reset
+
+    @Test
+    fun adminCategoryFilter_findsProvidersInThatCategory() {
+        val providers = listOf(
+            Provider(id = "p1", categoryId = "plumber"),
+            Provider(id = "p2", categoryId = "painter"),
+            Provider(id = "p3", categoryId = "plumber"),
+        )
+        assertEquals(setOf("p1", "p3"), providerIdsInCategory(providers, "plumber"))
+        assertEquals(null, providerIdsInCategory(providers, null))   // no filter -> everyone
+    }
+
+    @Test
+    fun passwordReset_onlyForRealEmails() {
+        assertTrue(canSendPasswordReset(User(email = "priya@gmail.com")))
+        assertFalse(canSendPasswordReset(User(email = "sample_plumber_1@sample.servicehub")))
+        assertFalse(canSendPasswordReset(User(email = "")))
     }
 
     @Test

@@ -113,6 +113,11 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC96 | Revisit done | Provider → Mark revisit done | Customer sees "Free revisit completed" + notification; button gone (only once) | |
 | TC97 | Saved addresses | Profile → Saved addresses → + Add "Work" | Booking form shows Profile / Work chips; tapping fills the address | |
 | TC98 | Earnings split | Complete a ₹149 job (total ₹198) | Provider earnings +₹149; admin "Earnings split": platform ₹49, providers ₹149 | |
+| TC99 | Show password | Login / Register: tap the eye icon in the password box | Password becomes visible; tap again to hide | |
+| TC100 | Admin reset password | Admin → Users → key icon on a user with a real email → Send link | Message "reset link sent"; the user receives the email and can set a new password | |
+| TC101 | No reset for samples | Admin → Users → a sample provider | No key icon / Reset button (no real inbox) | |
+| TC102 | Users by category | Admin → Users → Category: Plumber | Only plumbers are listed | |
+| TC103 | Bookings by category | Admin → Bookings → Category: Painter (+ a status) | Only matching bookings; count and completed value update | |
 | TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)

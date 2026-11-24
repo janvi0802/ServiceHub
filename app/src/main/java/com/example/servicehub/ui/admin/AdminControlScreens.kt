@@ -79,6 +79,8 @@ import com.example.servicehub.data.DateUtils
 import com.example.servicehub.data.model.Complaint
 import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.AdminRepository
+import com.example.servicehub.data.repository.AuthRepository
+import androidx.compose.material.icons.filled.LockReset
 import com.example.servicehub.data.repository.ComplaintRepository
 import com.example.servicehub.ui.components.openDialer
 import com.example.servicehub.data.repository.ServiceRepository
@@ -129,6 +131,13 @@ class AdminControlViewModel : ViewModel() {
             "Failed: check your internet and try again."
         }
     }
+
+    /**
+     * Firebase emails the user a secure link to choose a new password.
+     * (On the free plan nobody, not even the admin, can see or type someone else's password.)
+     */
+    fun sendPasswordReset(user: User) =
+        act("Password reset link sent to ${user.email}.") { AuthRepository.sendPasswordReset(user.email) }
 
     fun setBlocked(user: User, blocked: Boolean) =
         act(if (blocked) "${user.name} blocked." else "${user.name} unblocked.") {
@@ -368,6 +377,10 @@ fun AdminUsersScreen(onOpenUser: (String) -> Unit, viewModel: AdminControlViewMo
     var filter by rememberSaveable { mutableStateOf("All") }
     var search by rememberSaveable { mutableStateOf("") }
     var confirmUser by remember { mutableStateOf<User?>(null) }
+    var resetUser by remember { mutableStateOf<User?>(null) }
+    val providers by viewModel.providers.collectAsState()
+    val categories by CategoryStore.all.collectAsState()
+    var categoryName by rememberSaveable { mutableStateOf(ALL_CATEGORIES) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Users", subtitle = "${users.orEmpty().count { it.role != Roles.ADMIN }} people · tap one for details")
@@ -375,24 +388,40 @@ fun AdminUsersScreen(onOpenUser: (String) -> Unit, viewModel: AdminControlViewMo
             search, { search = it }, "Search name, email or phone",
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+        // Category filter: picking one shows only PROVIDERS who work in that category
+        DropdownField(
+            "Category", listOf(ALL_CATEGORIES) + categories.map { it.name }, categoryName, { categoryName = it },
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+        )
         FilterRow(listOf("All", "Customers", "Providers", "Blocked"), filter) { filter = it }
         MessageLine(viewModel)
+        val categoryId = categories.firstOrNull { it.name == categoryName }?.id
+        val idsInCategory = providerIdsInCategory(providers.orEmpty(), categoryId)
         val shown = users?.filter {
-            it.role != Roles.ADMIN && userMatches(it, search.trim()) && when (filter) {
-                "Customers" -> it.role == Roles.CUSTOMER
-                "Providers" -> it.role == Roles.PROVIDER
-                "Blocked" -> it.isBlocked
-                else -> true
-            }
+            it.role != Roles.ADMIN && userMatches(it, search.trim()) &&
+                (idsInCategory == null || it.id in idsInCategory) &&
+                when (filter) {
+                    "Customers" -> it.role == Roles.CUSTOMER
+                    "Providers" -> it.role == Roles.PROVIDER
+                    "Blocked" -> it.isBlocked
+                    else -> true
+                }
         }?.sortedBy { it.name.lowercase() }
 
         ListOrState(shown, "No users here.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(list, key = { it.id }) { user ->
-                    UserCard(user, onClick = { onOpenUser(user.id) })
+                    UserCard(user, onClick = { onOpenUser(user.id) }, onResetPassword = { resetUser = user })
                 }
             }
         }
+    }
+
+    resetUser?.let { user ->
+        PasswordResetDialog(user, onConfirm = {
+            viewModel.sendPasswordReset(user)
+            resetUser = null
+        }, onDismiss = { resetUser = null })
     }
 
     // Ask before blocking/unblocking, so a mistaken tap does nothing
@@ -418,6 +447,20 @@ fun AdminUsersScreen(onOpenUser: (String) -> Unit, viewModel: AdminControlViewMo
     }
 }
 
+/** Text of the "no category filter" option in the category dropdowns. */
+const val ALL_CATEGORIES = "All categories"
+
+/**
+ * Ids of providers working in [categoryId], or null when no category is chosen (= show everyone).
+ * Users don't store a category; providers do, so we look it up in the providers list.
+ */
+fun providerIdsInCategory(providers: List<Provider>, categoryId: String?): Set<String>? =
+    categoryId?.let { id -> providers.filter { it.categoryId == id }.map { it.id }.toSet() }
+
+/** Sample providers have made-up emails (no real inbox), so a reset email would go nowhere. */
+fun canSendPasswordReset(user: User): Boolean =
+    user.email.contains("@") && !user.email.endsWith("@sample.servicehub")
+
 /** Empty search matches everyone; otherwise name, email or phone must contain the text. */
 fun userMatches(user: User, text: String): Boolean =
     text.isEmpty() ||
@@ -426,7 +469,7 @@ fun userMatches(user: User, text: String): Boolean =
         user.phone.contains(text)
 
 @Composable
-private fun UserCard(user: User, onClick: () -> Unit) {
+private fun UserCard(user: User, onClick: () -> Unit, onResetPassword: () -> Unit) {
     AppCard(onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Avatar(user.name)
@@ -438,9 +481,29 @@ private fun UserCard(user: User, onClick: () -> Unit) {
                     if (user.isBlocked) StatusChip("Blocked", StatusRejected)
                 }
             }
+            // Quick action: email this user a password reset link
+            if (canSendPasswordReset(user)) {
+                IconButton(onClick = onResetPassword) {
+                    Icon(Icons.Filled.LockReset, contentDescription = "Send password reset to ${user.name}",
+                        tint = MaterialTheme.colorScheme.primary)
+                }
+            }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+/** "Send a reset link to …?" — explains what will happen before sending. */
+@Composable
+private fun PasswordResetDialog(user: User, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    ConfirmDialog(
+        title = "Reset ${user.name}'s password?",
+        message = "Firebase will email a secure link to ${user.email}. They open it and choose a new password. " +
+            "For safety, nobody (including the admin) can see or type another person's password.",
+        confirmText = "Send link",
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    )
 }
 
 /** "Customer" in blue, "Provider" in orange. */
@@ -462,6 +525,7 @@ fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminCo
     val providers by viewModel.providers.collectAsState()
     val context = LocalContext.current
     var confirm by rememberSaveable { mutableStateOf(false) }
+    var showReset by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("User details", onBack)
@@ -501,6 +565,9 @@ fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminCo
                     }
                     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { openDialer(context, user.phone) }) { Text("Call") }
+                        if (canSendPasswordReset(user)) {
+                            OutlinedButton(onClick = { showReset = true }) { Text("Reset password") }
+                        }
                         if (user.isBlocked) {
                             Button(onClick = { confirm = true }) { Text("Unblock") }
                         } else {
@@ -527,6 +594,12 @@ fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminCo
             }
         }
 
+        if (showReset) {
+            PasswordResetDialog(user, onConfirm = {
+                viewModel.sendPasswordReset(user)
+                showReset = false
+            }, onDismiss = { showReset = false })
+        }
         if (confirm) {
             val block = !user.isBlocked
             ConfirmDialog(
@@ -760,21 +833,34 @@ fun AdminBookingsScreen(viewModel: AdminControlViewModel = viewModel()) {
     val bookings by viewModel.bookings.collectAsState()
     var filter by rememberSaveable { mutableStateOf("All") }
     val options = listOf("All") + BookingStatus.entries.map { it.label } + "Expired"
+    val categories by CategoryStore.all.collectAsState()
+    var categoryName by rememberSaveable { mutableStateOf(ALL_CATEGORIES) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("All bookings")
+        DropdownField(
+            "Category", listOf(ALL_CATEGORIES) + categories.map { it.name }, categoryName, { categoryName = it },
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
+        )
         FilterRow(options, filter) { filter = it }
+        val categoryId = categories.firstOrNull { it.name == categoryName }?.id
         val shown: List<Booking>? = bookings?.filter {
-            when (filter) {
-                "All" -> true
-                "Expired" -> it.isExpired
-                else -> it.bookingStatus.label == filter && !it.isExpired   // "Requested" = still waiting
-            }
+            (categoryId == null || it.categoryId == categoryId) &&
+                when (filter) {
+                    "All" -> true
+                    "Expired" -> it.isExpired
+                    else -> it.bookingStatus.label == filter && !it.isExpired   // "Requested" = still waiting
+                }
         }
 
-        ListOrState(shown, "No bookings here.") { list ->
+        ListOrState(shown, "No bookings match these filters.") { list ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Text("${list.size} booking(s)", style = MaterialTheme.typography.labelLarge) }
+                item {
+                    Text(
+                        "${list.size} booking(s) · ${rupees(list.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.totalAmount })} completed value",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
                 items(list, key = { it.id }) { booking ->
                     BookingCard(booking, "${booking.customerName} → ${booking.providerName}", onClick = {})
                 }
