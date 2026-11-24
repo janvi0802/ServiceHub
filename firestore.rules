@@ -56,7 +56,7 @@ service cloud.firestore {
       // You can never change your own role or blocked status. The admin can change anything.
       allow update: if isAdmin() || (
         active() && request.auth.uid == uid
-        && onlyChanges(['name', 'phone', 'area', 'address', 'savedAddresses'])
+        && onlyChanges(['name', 'phone', 'area', 'address', 'savedAddresses', 'favoriteProviderIds'])
       );
 
       allow delete: if false;

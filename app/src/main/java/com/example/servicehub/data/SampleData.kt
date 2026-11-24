@@ -11,7 +11,44 @@ import com.example.servicehub.data.model.Service
  */
 object SampleData {
 
-    val services: List<Service> = listOf(
+    /** All sample services, with their "What's included" / "Not included" text filled in. */
+    val services: List<Service> by lazy {
+        baseServices.map { s ->
+            val (inc, notInc) = serviceDetails[s.id] ?: ("" to "")
+            s.copy(included = inc, notIncluded = notInc)
+        }
+    }
+
+    /**
+     * Service details page text: (included, not included), one point per line.
+     * Kept separate so the list below stays easy to read.
+     */
+    private val serviceDetails: Map<String, Pair<String, String>> = mapOf(
+        "plumber_tap_repair" to ("Inspection of the tap and pipe joint\nReplacement of washer or O-ring\nLeak test after repair" to "New tap or cartridge (paid separately)"),
+        "plumber_pipe_leak" to ("Finding the leak point\nSealing or joint replacement (up to 1 point)\nLeak test" to "New pipes or wall breaking"),
+        "plumber_toilet_repair" to ("Flush tank or seat repair\nLeakage check at the base\nTesting after repair" to "New flush tank, seat or commode"),
+        "plumber_tank_cleaning" to ("Draining and scrubbing the tank\nRemoval of sludge\nRinse and refill" to "Tanks larger than 1000 L\nRepairs to the tank body"),
+        "electrician_switch" to ("Repair or replacement of 1 switch or socket\nSafety check of the board" to "New switch or socket (paid separately)"),
+        "electrician_fan" to ("Installation of 1 ceiling fan\nConnection to existing wiring\nSpeed and wobble test" to "The fan itself\nNew wiring or down-rod"),
+        "electrician_light" to ("Installation of 1 tube light or LED panel\nConnection and testing" to "The light fitting\nNew wiring"),
+        "electrician_wiring" to ("Full check of one room's wiring\nFinding short circuits or loose connections\nSmall fixes" to "Re-wiring of the room\nNew cables or MCB"),
+        "cleaning_bathroom" to ("Tiles, floor and walls scrubbed\nTaps, mirror and fittings cleaned\nToilet and sink deep-cleaned" to "Removing hard stains older than 1 year"),
+        "cleaning_kitchen" to ("Slab, sink and tiles degreased\nOutside of cabinets and appliances cleaned\nFloor scrubbed" to "Inside of chimney\nInside of cabinets"),
+        "cleaning_sofa" to ("Vacuuming and shampoo of up to 5 seats\nStain treatment" to "Leather sofas\nDrying time (2–4 hours)"),
+        "cleaning_full_home" to ("Deep cleaning of a 2BHK: rooms, kitchen, bathrooms\nFans, windows and switchboards\nFloors scrubbed" to "Wall washing\nInside of wardrobes"),
+        "ac_service" to ("Filter and indoor coil cleaning\nDrain pipe check\nCooling test" to "Gas refill\nSpare parts"),
+        "ac_gas_refill" to ("Leak check and fixing of small leaks\nGas top-up to the right pressure\nCooling test" to "Compressor repair\nMajor leak repairs"),
+        "ac_installation" to ("Installation of 1 split AC\nMounting of indoor and outdoor units\nUp to 3 m of copper pipe" to "Extra pipe beyond 3 m\nStand or stabiliser"),
+        "ac_not_cooling" to ("Diagnosis of the cooling problem\nSmall fixes on the spot\nClear quote for any part needed" to "Spare parts\nGas refill (separate service)"),
+        "carpenter_door" to ("Fixing hinges, alignment or handle\nLock adjustment" to "New lock, hinges or door"),
+        "carpenter_furniture" to ("Assembly of 1 bed, table or wardrobe\nTightening and level check" to "Wall mounting\nMissing parts"),
+        "carpenter_shelf" to ("Installation of 1 wall shelf\nDrilling and fixing" to "The shelf itself\nConcrete wall drilling bits"),
+        "painter_room" to ("Painting of walls of 1 room (up to 12 x 12 ft)\nSurface sanding and 2 coats\nCovering of furniture" to "Paint and putty (paid separately)\nCeiling and doors"),
+        "painter_touch_up" to ("Patching and painting of small areas\nColour matching" to "Paint (paid separately)\nFull walls"),
+        "painter_door_polish" to ("Sanding and polishing of 1 wooden door (both sides)" to "Polish material (paid separately)\nDoor repairs"),
+    )
+
+    private val baseServices: List<Service> = listOf(
         // Plumber
         Service("plumber_tap_repair", "plumber", "Tap repair", "Fix leaking or broken taps", 149, 30),
         Service("plumber_pipe_leak", "plumber", "Pipe leakage fix", "Find and seal leaking pipes", 299, 60),

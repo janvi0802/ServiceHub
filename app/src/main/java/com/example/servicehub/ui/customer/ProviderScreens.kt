@@ -48,6 +48,11 @@ import com.example.servicehub.ui.components.EmptyBox
 import com.example.servicehub.ui.components.LoadingBox
 import com.example.servicehub.ui.components.ProviderBadges
 import com.example.servicehub.ui.components.StarRow
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import kotlinx.coroutines.flow.map
 import com.example.servicehub.ui.components.AppCard
 import com.example.servicehub.ui.components.BottomActionBar
 import com.example.servicehub.ui.components.Caption
@@ -103,6 +108,10 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     private val categoryId: String = savedStateHandle["categoryId"] ?: ""
     val serviceId: String = savedStateHandle["serviceId"] ?: ""
 
+    private val favoritesHelper = FavoritesHelper(viewModelScope)
+    val favorites: StateFlow<Set<String>> = favoritesHelper.ids
+    fun toggleFavorite(providerId: String) = favoritesHelper.toggle(providerId)
+
     val selectedArea = MutableStateFlow(ALL_AREAS)
     val selectedSort = MutableStateFlow(ProviderSort.RATING)
     /** "Available today" chip, for urgent needs: hides providers whose weekly day off is today. */
@@ -135,8 +144,10 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 fun ProviderListScreen(
     onBack: () -> Unit,
     onProviderClick: (providerId: String, serviceId: String) -> Unit,
+    onBook: (providerId: String, serviceId: String) -> Unit,
     viewModel: ProviderListViewModel = viewModel(),
 ) {
+    val favorites by viewModel.favorites.collectAsState()
     val providers by viewModel.providers.collectAsState()
     val area by viewModel.selectedArea.collectAsState()
     val sort by viewModel.selectedSort.collectAsState()
@@ -220,7 +231,13 @@ fun ProviderListScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(list, key = { it.id }) { provider ->
-                    ProviderCard(provider, onClick = { onProviderClick(provider.id, viewModel.serviceId) })
+                    ProviderCard(
+                        provider,
+                        isFavorite = provider.id in favorites,
+                        onClick = { onProviderClick(provider.id, viewModel.serviceId) },
+                        onBook = { onBook(provider.id, viewModel.serviceId) },
+                        onToggleFavorite = { viewModel.toggleFavorite(provider.id) },
+                    )
                 }
             }
         }
@@ -228,16 +245,24 @@ fun ProviderListScreen(
 }
 
 @Composable
-private fun ProviderCard(provider: Provider, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+private fun ProviderCard(
+    provider: Provider,
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    onBook: () -> Unit,
+    onToggleFavorite: () -> Unit,
+) {
+    AppCard(onClick = onClick) {
         Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Avatar(provider.name, 52.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(provider.name, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(provider.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    FavoriteButton(isFavorite, onToggleFavorite)
+                }
                 ProviderBadges(provider)
                 if (isOffOn(provider, DateUtils.today())) {
                     val next = nextWorkingDay(provider, DateUtils.nextDays(7))
@@ -256,6 +281,39 @@ private fun ProviderCard(provider: Provider, onClick: () -> Unit) {
                 RatingLabel(provider.ratingAvg, provider.ratingCount)
             }
         }
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End) {
+            OutlinedButton(onClick = onClick) { Text("View profile") }
+            Button(onClick = onBook, enabled = provider.isAvailable, modifier = Modifier.padding(start = 8.dp)) { Text("Book") }
+        }
+    }
+}
+
+/** Heart icon: filled red when this professional is in the customer's favourites. */
+@Composable
+fun FavoriteButton(isFavorite: Boolean, onToggle: () -> Unit) {
+    IconButton(onClick = onToggle, modifier = Modifier.size(36.dp)) {
+        Icon(
+            if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+            contentDescription = if (isFavorite) "Remove from favourites" else "Add to favourites",
+            tint = if (isFavorite) Color(0xFFE53935) else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The logged-in customer's favourite provider ids, live, plus a toggle.
+ * Shared by the provider list, provider profile and the Favourites screen.
+ */
+class FavoritesHelper(private val scope: kotlinx.coroutines.CoroutineScope) {
+    private val uid = AuthRepository.currentUserId.orEmpty()
+
+    val ids: StateFlow<Set<String>> = UserRepository.liveUser(uid)
+        .map { it?.favoriteProviderIds.orEmpty().toSet() }
+        .catch { emit(emptySet()) }
+        .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    fun toggle(providerId: String) = scope.launch {
+        runCatching { UserRepository.setFavorite(uid, providerId, providerId !in ids.value) }
     }
 }
 
@@ -264,6 +322,10 @@ private fun ProviderCard(provider: Provider, onClick: () -> Unit) {
 class ProviderDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     val providerId: String = savedStateHandle["providerId"] ?: ""
     val serviceId: String = savedStateHandle["serviceId"] ?: ""
+
+    private val favoritesHelper = FavoritesHelper(viewModelScope)
+    val favorites: StateFlow<Set<String>> = favoritesHelper.ids
+    fun toggleFavorite() = favoritesHelper.toggle(providerId)
 
     val provider: StateFlow<Provider?> = ProviderRepository.liveProvider(providerId)
         .catch { emit(null) }
@@ -289,9 +351,12 @@ fun ProviderDetailScreen(
     val provider by viewModel.provider.collectAsState()
     val reviews by viewModel.reviews.collectAsState()
     val service by viewModel.service.collectAsState()
+    val favorites by viewModel.favorites.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Professional", onBack)
+        ScreenHeader("Professional", onBack) {
+            FavoriteButton(viewModel.providerId in favorites, viewModel::toggleFavorite)
+        }
         val p = provider
         if (p == null) {
             LoadingBox()

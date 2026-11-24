@@ -27,6 +27,10 @@ fun BookingInfoCard(booking: Booking, personLabel: String, personName: String) {
             InfoRow("Date", DateUtils.pretty(booking.date))
             InfoRow("Slot", booking.timeSlot)
             InfoRow("Address", booking.address)
+            // Booked for someone else: the person at the address
+            if (booking.contactName.isNotBlank()) {
+                InfoRow("Contact person", "${booking.contactName} · ${booking.contactPhone}")
+            }
             if (booking.note.isNotBlank()) InfoRow("Problem", booking.note)
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             InfoRow("Service price", rupees(booking.servicePrice))

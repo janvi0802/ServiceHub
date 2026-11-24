@@ -49,6 +49,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import com.example.servicehub.data.CategoryStore
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.IconTile
+import androidx.compose.material3.Button
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
@@ -79,6 +82,7 @@ fun CategoryServicesScreen(
     categoryId: String,
     onBack: () -> Unit,
     onServiceClick: (Service) -> Unit,
+    onBook: (Service) -> Unit,
     viewModel: CatalogViewModel = viewModel(),
 ) {
     val all by viewModel.activeServices.collectAsState()
@@ -100,7 +104,7 @@ fun CategoryServicesScreen(
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(horizontal = 16.dp),
                 )
-                ServiceList(services, showCategory = false, onServiceClick)
+                ServiceList(services, showCategory = false, onServiceClick, onBook)
             }
         }
     }
@@ -111,6 +115,7 @@ fun CategoryServicesScreen(
 fun SearchScreen(
     onBack: () -> Unit,
     onServiceClick: (Service) -> Unit,
+    onBook: (Service) -> Unit,
     viewModel: CatalogViewModel = viewModel(),
 ) {
     val all by viewModel.activeServices.collectAsState()
@@ -147,44 +152,56 @@ fun SearchScreen(
                 message = "Nothing matches \"$text\". Check the spelling or try a category name.",
                 icon = Icons.Filled.SearchOff,
             )
-            else -> ServiceList(results, showCategory = true, onServiceClick)
+            else -> ServiceList(results, showCategory = true, onServiceClick, onBook)
         }
     }
 }
 
+/**
+ * [onServiceClick] opens the service details page; [onBook] goes straight to choosing a professional.
+ */
 @Composable
-private fun ServiceList(services: List<Service>, showCategory: Boolean, onServiceClick: (Service) -> Unit) {
+private fun ServiceList(
+    services: List<Service>,
+    showCategory: Boolean,
+    onServiceClick: (Service) -> Unit,
+    onBook: (Service) -> Unit,
+) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(services, key = { it.id }) { service ->
-            ServiceCard(service, showCategory, onClick = { onServiceClick(service) })
+            ServiceCard(service, showCategory, onClick = { onServiceClick(service) }, onBook = { onBook(service) })
         }
     }
 }
 
 @Composable
-private fun ServiceCard(service: Service, showCategory: Boolean, onClick: () -> Unit) {
+private fun ServiceCard(service: Service, showCategory: Boolean, onClick: () -> Unit, onBook: () -> Unit) {
     val category = FixedData.categoryById(service.categoryId)
-    Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (category != null) {
-                Icon(category.icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-            }
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    AppCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.Top) {
+            IconTile(category?.icon ?: Icons.Filled.Schedule, category?.color ?: MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(service.name, style = MaterialTheme.typography.titleMedium)
                 if (showCategory && category != null) {
                     Text(category.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 }
-                Text(service.description, style = MaterialTheme.typography.bodySmall)
+                Text(service.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(rupees(service.price), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Schedule, null, modifier = Modifier.size(14.dp))
-                    Text(" ~${service.durationMins} min", style = MaterialTheme.typography.bodySmall)
+                    Icon(Icons.Filled.Schedule, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(" ~${service.durationMins} min · Details", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            Text(rupees(service.price), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+            // The clear "Book" action
+            Button(onClick = onBook) { Text("Book") }
         }
     }
 }

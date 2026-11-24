@@ -119,6 +119,13 @@ fun JobDetailScreen(
                         Text("  Open in Maps")
                     }
                 }
+                // Booked for someone else (e.g. the customer's parents): call the person at the address
+                if (booking.contactPhone.isNotBlank()) {
+                    OutlinedButton(onClick = { openDialer(context, booking.contactPhone) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Filled.Call, contentDescription = null)
+                        Text("  Call ${booking.contactName} (at the address)")
+                    }
+                }
             }
 
             when {

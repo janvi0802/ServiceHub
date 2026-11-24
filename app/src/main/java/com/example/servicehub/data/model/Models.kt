@@ -55,6 +55,8 @@ data class User(
     val createdAt: Long = 0L,
     /** Extra addresses the customer saved, e.g. Home / Work / Parents. */
     val savedAddresses: List<SavedAddress> = emptyList(),
+    /** Professionals the customer marked as favourite (provider ids). */
+    val favoriteProviderIds: List<String> = emptyList(),
 )
 
 /** One saved address, e.g. label "Work", address "Office 4, CG Road". */
@@ -157,7 +159,21 @@ data class Service(
     val durationMins: Int = 0,
     @get:PropertyName("isActive") @set:PropertyName("isActive")
     var isActive: Boolean = true,
+    /** "What's included" for the service details page (one point per line). Optional. */
+    val included: String = "",
+    /** "Not included" (e.g. spare parts). Optional. */
+    val notIncluded: String = "",
 )
+
+/** The service's "What's included" points; a sensible default if the admin left it empty. */
+fun includedPoints(service: Service): List<String> =
+    service.included.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        .ifEmpty { listOf(service.description, "Done by a verified, rated professional", "Clean-up of the work area after the job") }
+
+/** The service's "Not included" points; spare parts by default. */
+fun notIncludedPoints(service: Service): List<String> =
+    service.notIncluded.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        .ifEmpty { listOf("Spare parts or materials (paid separately, only after you agree)") }
 
 /** bookings/{id} : one job booked by a customer with a provider */
 data class Booking(
@@ -191,6 +207,9 @@ data class Booking(
     val acceptedAt: Long = 0L,
     val startedAt: Long = 0L,
     val completedAt: Long = 0L,
+    /** "Book for someone else": the person at the address (empty = the customer themselves). */
+    val contactName: String = "",
+    val contactPhone: String = "",
     /** When the provider tapped "On my way" (0 = not yet). The status stays ACCEPTED. */
     val onTheWayAt: Long = 0L,
     /** Spare parts / extra work added at completion. totalAmount already includes them. */

@@ -17,6 +17,10 @@ import com.example.servicehub.data.model.isTopRated
 import com.example.servicehub.data.model.isOffOn
 import com.example.servicehub.data.model.nextWorkingDay
 import com.example.servicehub.data.model.canRequestRevisitAt
+import com.example.servicehub.data.model.Service
+import com.example.servicehub.data.model.includedPoints
+import com.example.servicehub.data.model.notIncludedPoints
+import com.example.servicehub.ui.customer.FavoritesViewModel
 import com.example.servicehub.ui.common.notificationStyle
 import com.example.servicehub.ui.customer.MyBookingsViewModel
 import com.example.servicehub.ui.theme.StatusAccepted
@@ -538,6 +542,27 @@ class LogicTest {
         assertTrue(canSendPasswordReset(User(email = "priya@gmail.com")))
         assertFalse(canSendPasswordReset(User(email = "sample_plumber_1@sample.servicehub")))
         assertFalse(canSendPasswordReset(User(email = "")))
+    }
+
+    // ------------------------------------------------ service details and favourites
+
+    @Test
+    fun serviceDetails_includedTextAndDefaults() {
+        val tap = SampleData.services.first { it.id == "plumber_tap_repair" }
+        assertEquals(3, includedPoints(tap).size)                              // from the sample text
+        assertTrue(notIncludedPoints(tap).first().contains("cartridge"))
+        val bare = Service(name = "Geyser repair", description = "Fix geysers")
+        assertEquals("Fix geysers", includedPoints(bare).first())                 // sensible default
+        assertTrue(notIncludedPoints(bare).first().contains("Spare parts"))
+        // every sample service has its own details text
+        assertTrue(SampleData.services.all { it.included.isNotBlank() && it.notIncluded.isNotBlank() })
+    }
+
+    @Test
+    fun favorites_openTheCheapestServiceOfTheirCategory() {
+        val painter = Provider(id = "x", categoryId = "painter")
+        assertEquals("painter_touch_up", FavoritesViewModel.defaultServiceFor(painter, SampleData.services)?.id)
+        assertEquals(null, FavoritesViewModel.defaultServiceFor(Provider(categoryId = "unknown"), SampleData.services))
     }
 
     @Test

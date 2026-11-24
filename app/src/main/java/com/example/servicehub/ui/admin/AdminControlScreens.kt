@@ -152,8 +152,8 @@ class AdminControlViewModel : ViewModel() {
             AdminRepository.setServiceActive(service.id, active)
         }
 
-    fun updateService(service: Service, price: Int, description: String) =
-        act("${service.name} updated.") { AdminRepository.updateService(service.id, price, description) }
+    fun updateService(service: Service, price: Int, description: String, included: String, notIncluded: String) =
+        act("${service.name} updated.") { AdminRepository.updateService(service.id, price, description, included, notIncluded) }
 
     fun addService(categoryId: String, name: String, description: String, price: Int, durationMins: Int) =
         act("$name added.") { AdminRepository.addService(categoryId, name, description, price, durationMins) }
@@ -732,8 +732,8 @@ fun AdminServicesScreen(onOpenCategories: () -> Unit, viewModel: AdminControlVie
     editing?.let { service ->
         EditServiceDialog(
             service = service,
-            onSave = { price, description ->
-                viewModel.updateService(service, price, description)
+            onSave = { price, description, included, notIncluded ->
+                viewModel.updateService(service, price, description, included, notIncluded)
                 editing = null
             },
             onDismiss = { editing = null },
@@ -763,9 +763,11 @@ private fun ServiceAdminCard(service: Service, onActiveChange: (Boolean) -> Unit
 
 /** Edit price and description. Price must be a whole number from 1 to 100000. */
 @Composable
-private fun EditServiceDialog(service: Service, onSave: (Int, String) -> Unit, onDismiss: () -> Unit) {
+private fun EditServiceDialog(service: Service, onSave: (Int, String, String, String) -> Unit, onDismiss: () -> Unit) {
     var priceText by remember { mutableStateOf(service.price.toString()) }
     var description by remember { mutableStateOf(service.description) }
+    var included by remember { mutableStateOf(service.included) }
+    var notIncluded by remember { mutableStateOf(service.notIncluded) }
     val price = priceText.toIntOrNull()
     val valid = price != null && price in 1..100000 && description.isNotBlank()
 
@@ -773,14 +775,20 @@ private fun EditServiceDialog(service: Service, onSave: (Int, String) -> Unit, o
         onDismissRequest = onDismiss,
         title = { Text("Edit ${service.name}") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextInput(priceText, { priceText = it.filter(Char::isDigit).take(6) }, "Price (₹)", keyboardType = KeyboardType.Number)
                 TextInput(description, { description = it.take(120) }, "Description", singleLine = false)
+                // Shown on the customer's service details page (one point per line)
+                TextInput(included, { included = it.take(400) }, "What's included (one per line)", singleLine = false)
+                TextInput(notIncluded, { notIncluded = it.take(300) }, "Not included (one per line)", singleLine = false)
                 if (!valid) Text("Enter a price from ₹1 to ₹1,00,000 and a description.", color = MaterialTheme.colorScheme.error)
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(price ?: 0, description.trim()) }, enabled = valid) { Text("Save") }
+            TextButton(
+                onClick = { onSave(price ?: 0, description.trim(), included.trim(), notIncluded.trim()) },
+                enabled = valid,
+            ) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
     )

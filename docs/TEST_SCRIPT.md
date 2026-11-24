@@ -118,6 +118,14 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC101 | No reset for samples | Admin → Users → a sample provider | No key icon / Reset button (no real inbox) | |
 | TC102 | Users by category | Admin → Users → Category: Plumber | Only plumbers are listed | |
 | TC103 | Bookings by category | Admin → Bookings → Category: Painter (+ a status) | Only matching bookings; count and completed value update | |
+| TC104 | Book a service | Customer Home → "Book a service" | Scrolls to All categories | |
+| TC105 | Service details | Category → tap a service card | Details page: price, time, what's included / not included, how it works, promise, Book now bar | |
+| TC106 | Book buttons | Service card "Book"; provider card "Book" | Go straight to choosing a provider / to the booking form | |
+| TC107 | Review step | Fill the form → Review booking | Summary with Edit links; nothing saved until Confirm booking; Back returns to the form | |
+| TC108 | Book for someone else | Booking for: Someone else + name + phone | Summary shows them; provider's job shows "Contact person" and "Call … (at the address)" | |
+| TC109 | Favourites | Heart on a provider → Profile → My favourites | Provider listed; Book opens their profile; heart again removes them | |
+| TC110 | Help | Profile → Help & support (customer and provider) | Role-specific questions; tap to expand | |
+| TC111 | Admin service text | Admin → Services → edit → What's included | New points show on the customer's details page | |
 | TC70 | User search | Admin → Users → type part of a name/email/phone | List filters as you type | |
 
 ## Automatic tests (no phone needed)

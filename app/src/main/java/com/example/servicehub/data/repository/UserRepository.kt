@@ -7,6 +7,7 @@ import com.example.servicehub.data.model.Provider
 import com.example.servicehub.data.model.Roles
 import com.example.servicehub.data.model.SavedAddress
 import com.example.servicehub.data.model.User
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
@@ -30,6 +31,12 @@ object UserRepository {
         users.document(uid)
             .update("savedAddresses", addresses.map { mapOf("label" to it.label, "address" to it.address) })
             .await()
+    }
+
+    /** Add (or remove) a professional in the customer's favourites. arrayUnion/arrayRemove change one item. */
+    suspend fun setFavorite(uid: String, providerId: String, favorite: Boolean) {
+        val change = if (favorite) FieldValue.arrayUnion(providerId) else FieldValue.arrayRemove(providerId)
+        users.document(uid).update("favoriteProviderIds", change).await()
     }
 
     /** users/{uid}, live. Used to log a person out the moment the admin blocks them. */

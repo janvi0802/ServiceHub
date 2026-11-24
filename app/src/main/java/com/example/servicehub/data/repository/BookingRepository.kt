@@ -114,6 +114,8 @@ object BookingRepository {
         address: String,
         note: String,
         paymentMode: String,
+        contactName: String = "",
+        contactPhone: String = "",
     ): String {
         // Check again with the LATEST data: the provider or service may have changed
         // while the customer was filling in the form.
@@ -150,6 +152,7 @@ object BookingRepository {
             visitFee = FixedData.VISIT_FEE,
             totalAmount = latestService.price + FixedData.VISIT_FEE,
             date = date, timeSlot = timeSlot, address = address, note = note,
+            contactName = contactName, contactPhone = contactPhone,
             status = BookingStatus.REQUESTED.name,
             startPin = Random.nextInt(1000, 10000).toString(),   // 4 digits: 1000..9999
             paymentMode = paymentMode,

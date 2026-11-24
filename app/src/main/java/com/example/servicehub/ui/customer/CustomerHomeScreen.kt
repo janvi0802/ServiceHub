@@ -14,6 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material3.Button
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -156,14 +161,27 @@ fun CustomerHomeScreen(
     val quickPicks = CustomerHomeViewModel.quickPicks(services, allCategories)
     val bookAgain = CustomerHomeViewModel.bookAgain(bookings)
     val isNewCustomer = bookings.isEmpty()
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         fullWidth { HomeHeader(user, onOpenSearch) }
         fullWidth { TrustStrip() }
+        // The clear main action: jump down to all categories
+        fullWidth {
+            Button(
+                onClick = { scope.launch { listState.animateScrollToItem(categoriesIndex(upcoming, toRate, isNewCustomer, bookAgain, quickPicks)) } },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(50.dp),
+            ) {
+                Icon(Icons.Filled.AddCircle, contentDescription = null)
+                Text("  Book a service")
+            }
+        }
 
         if (upcoming != null) {
             fullWidth { Padded { UpcomingCard(upcoming, onClick = { onOpenBooking(upcoming.id) }) } }
@@ -210,6 +228,23 @@ fun CustomerHomeScreen(
             }
         }
     }
+}
+
+/**
+ * Position of the "All categories" title in the Home list, so "Book a service" can scroll to it.
+ * Counts the items above it: header, trust strip, button (3), then each optional section.
+ */
+private fun categoriesIndex(
+    upcoming: Booking?, toRate: Booking?, isNewCustomer: Boolean,
+    bookAgain: List<BookAgainItem>, quickPicks: List<Service>,
+): Int {
+    var index = 3
+    if (upcoming != null) index++
+    if (toRate != null) index++
+    if (isNewCustomer) index++
+    if (bookAgain.isNotEmpty()) index += 2   // title + row
+    if (quickPicks.isNotEmpty()) index += 2
+    return index
 }
 
 // ----------------------------------------------------------------- small layout helpers
@@ -377,7 +412,7 @@ private fun BookAgainCard(item: BookAgainItem, onClick: () -> Unit) {
             Avatar(item.providerName, 40.dp)
             Text(item.providerName, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(item.serviceName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("Book again →", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            Text("Book again", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -395,7 +430,10 @@ private fun QuickPickCard(service: Service, onClick: () -> Unit) {
             }
             Text(service.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("~${service.durationMins} min", style = MaterialTheme.typography.bodySmall)
-            Text(rupees(service.price), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(rupees(service.price), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Book", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }

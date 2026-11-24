@@ -254,6 +254,10 @@ Take these on a real phone (Power + Volume down):
 - Photos of the problem and provider ID verification documents
 - Maps and GPS: show distance, live provider location
 - Email verification at registration and phone OTP login
+- Admin sets a new password for a user directly: needs the Firebase Admin SDK on a server
+  (a Cloud Function on the Blaze plan) that checks the caller is the admin, sets the password,
+  signs the user out everywhere and emails them. Today the admin sends a secure reset link instead,
+  so nobody (not even the admin) ever knows another person's password.
 - Server-side checks with Cloud Functions (needs the paid Blaze plan)
 - Dark mode, Hindi/Gujarati languages, coupons and offers
 - Provider working hours and custom slots

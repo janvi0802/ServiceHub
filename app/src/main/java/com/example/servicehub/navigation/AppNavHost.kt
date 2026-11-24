@@ -54,6 +54,9 @@ import com.example.servicehub.ui.customer.MyBookingsScreen
 import com.example.servicehub.ui.customer.ProviderDetailScreen
 import com.example.servicehub.ui.customer.ProviderListScreen
 import com.example.servicehub.ui.customer.SearchScreen
+import com.example.servicehub.ui.customer.ServiceDetailScreen
+import com.example.servicehub.ui.customer.FavoritesScreen
+import com.example.servicehub.ui.common.HelpScreen
 import com.example.servicehub.ui.provider.JobDetailScreen
 import com.example.servicehub.ui.provider.JobHistoryScreen
 import com.example.servicehub.ui.provider.ProviderHomeScreen
@@ -195,7 +198,21 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 )
             }
             composable(Routes.PROFILE) {
-                ProfileScreen(onLoggedOut = onLoggedOut)
+                ProfileScreen(
+                    onLoggedOut = onLoggedOut,
+                    onOpenFavorites = { navController.navigate(Routes.FAVORITES) },
+                    onOpenHelp = { navController.navigate(Routes.HELP) },
+                )
+            }
+            composable(Routes.FAVORITES) {
+                FavoritesScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenProvider = { providerId, serviceId -> navController.navigate(Routes.providerDetail(providerId, serviceId)) },
+                    onExplore = { navController.openTab(Routes.CUSTOMER_HOME, Routes.CUSTOMER_HOME) },
+                )
+            }
+            composable(Routes.HELP) {
+                HelpScreen(isProvider = role == Roles.PROVIDER, onBack = { navController.popBackStack() })
             }
             composable(Routes.NOTIFICATIONS) {
                 NotificationsScreen(onOpenBooking = { bookingId ->
@@ -212,9 +229,8 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onOpenCategory = { categoryId -> navController.navigate(Routes.categoryServices(categoryId)) },
                     onOpenBooking = { id -> navController.navigate(Routes.bookingDetail(id)) },
                     onRate = { id -> navController.navigate(Routes.rateReview(id)) },
-                    onOpenService = { categoryId, serviceId ->
-                        navController.navigate(Routes.providerList(categoryId, serviceId))
-                    },
+                    // Quick picks open the service details page (what's included + Book now)
+                    onOpenService = { _, serviceId -> navController.navigate(Routes.serviceDetail(serviceId)) },
                     onOpenProvider = { providerId, serviceId ->
                         navController.navigate(Routes.providerDetail(providerId, serviceId))
                     },
@@ -223,18 +239,22 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.SEARCH) {
                 SearchScreen(
                     onBack = { navController.popBackStack() },
-                    onServiceClick = { service ->
-                        navController.navigate(Routes.providerList(service.categoryId, service.id))
-                    },
+                    onServiceClick = { service -> navController.navigate(Routes.serviceDetail(service.id)) },
+                    onBook = { service -> navController.navigate(Routes.providerList(service.categoryId, service.id)) },
                 )
             }
             composable(Routes.CATEGORY_SERVICES) { entry ->
                 CategoryServicesScreen(
                     categoryId = entry.arguments?.getString("categoryId").orEmpty(),
                     onBack = { navController.popBackStack() },
-                    onServiceClick = { service ->
-                        navController.navigate(Routes.providerList(service.categoryId, service.id))
-                    },
+                    onServiceClick = { service -> navController.navigate(Routes.serviceDetail(service.id)) },
+                    onBook = { service -> navController.navigate(Routes.providerList(service.categoryId, service.id)) },
+                )
+            }
+            composable(Routes.SERVICE_DETAIL) {
+                ServiceDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onBook = { categoryId, serviceId -> navController.navigate(Routes.providerList(categoryId, serviceId)) },
                 )
             }
             composable(Routes.PROVIDER_LIST) {
@@ -243,6 +263,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onProviderClick = { providerId, serviceId ->
                         navController.navigate(Routes.providerDetail(providerId, serviceId))
                     },
+                    onBook = { providerId, serviceId -> navController.navigate(Routes.bookingForm(providerId, serviceId)) },
                 )
             }
             composable(Routes.PROVIDER_DETAIL) {

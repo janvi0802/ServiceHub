@@ -119,6 +119,15 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
   search, trust strip, How it works, Quick picks, Book again), Provider Home (orange header,
   Next job with Call/Maps, This-week bar chart), requests badge on Jobs tab, brand logo on Login.
   Rules changed (categories) — publish again.
+- Customer booking round: clear Book buttons (Home "Book a service", service cards, provider
+  cards, quick picks), Service details page (services.included / notIncluded, sample text for
+  all 22, admin can edit, defaults when empty), Review-before-confirm step (BackHandler, Edit
+  links, saved only on Confirm), Book for someone else (bookings.contactName / contactPhone,
+  provider "Call … at the address"), Favourite professionals (users.favoriteProviderIds, heart on
+  cards/profile, My favourites screen), Help & support FAQs (customer/provider). Show/hide
+  password eye; admin "Send password reset" link; category filter on admin Users + Bookings.
+  Admin-sets-password-directly = future scope (needs Cloud Functions / Blaze).
+  Rules updated (favoriteProviderIds) — publish again.
 - Real-world flows round: "I'm on my way" (bookings.onTheWayAt, no status change, customer
   banner + notification + timeline), extra parts/work at completion (bookings.extraItems /
   extraAmount, total recalculated, itemized booking/receipt/share), 7-day service guarantee

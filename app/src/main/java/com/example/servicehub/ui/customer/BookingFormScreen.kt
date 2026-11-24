@@ -47,6 +47,13 @@ import com.example.servicehub.data.model.isOffOn
 import com.example.servicehub.data.model.nextWorkingDay
 import com.example.servicehub.ui.components.InfoBanner
 import com.example.servicehub.ui.components.BottomActionBar
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.Caption
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.input.KeyboardType
 import com.example.servicehub.ui.theme.StatusRequested
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventBusy
@@ -73,6 +80,12 @@ data class BookingFormUiState(
     val address: String = "",
     val note: String = "",
     val paymentMode: String = FixedData.paymentModes.first(),
+    /** "Book for someone else": the person at the address (e.g. parents). */
+    val bookingForOther: Boolean = false,
+    val contactName: String = "",
+    val contactPhone: String = "",
+    /** false = filling the form, true = the "Review booking" summary is shown. */
+    val reviewing: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
     val createdBookingId: String? = null,   // set after saving -> go to success screen
@@ -134,28 +147,48 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun onAddressChange(v: String) = _uiState.update { it.copy(address = v, error = null) }
     fun onNoteChange(v: String) = _uiState.update { it.copy(note = v, error = null) }
     fun onPaymentModeChange(v: String) = _uiState.update { it.copy(paymentMode = v, error = null) }
+    fun onBookingForChange(other: Boolean) = _uiState.update { it.copy(bookingForOther = other, error = null) }
+    fun onContactNameChange(v: String) = _uiState.update { it.copy(contactName = v.take(40), error = null) }
+    fun onContactPhoneChange(v: String) = _uiState.update { it.copy(contactPhone = v.filter(Char::isDigit).take(10), error = null) }
+
+    /** Back from the summary to the form (nothing is saved). */
+    fun backToEdit() = _uiState.update { it.copy(reviewing = false, error = null) }
+
+    /** Checks the form; returns a message if something is wrong, or null if it can be booked. */
+    private fun problemWith(s: BookingFormUiState, provider: Provider): String? = when {
+        isOffOn(provider, s.date) -> "${provider.name} is off on this day. Please choose another date."
+        s.timeSlot.isBlank() -> "Please choose a time slot."
+        isSlotDisabled(s.date, s.timeSlot) -> "This slot is already over today. Please choose another."
+        s.timeSlot in busySlots.value -> "This slot was just booked by someone else. Please choose another."
+        s.address.isBlank() -> "Please enter the address."
+        s.bookingForOther && s.contactName.isBlank() -> "Please enter the name of the person at the address."
+        s.bookingForOther && s.contactPhone.length != 10 -> "Their phone number must be 10 digits."
+        else -> null
+    }
+
+    /** "Review booking": check the form, then show the summary (still not saved). */
+    fun review() {
+        val s = _uiState.value
+        val provider = s.provider ?: return
+        val problem = problemWith(s, provider)
+        _uiState.update { if (problem != null) it.copy(error = problem) else it.copy(reviewing = true, error = null) }
+    }
 
     /** Today's slots that have already ended cannot be booked. */
     fun isSlotDisabled(date: String, slot: String): Boolean =
         date == DateUtils.today() &&
             FixedData.isSlotOverToday(slot, Calendar.getInstance().get(Calendar.HOUR_OF_DAY))
 
+    /** "Confirm booking" on the summary: only now is the booking saved (all checks run again). */
     fun confirm() {
         val s = _uiState.value
         val customer = s.customer ?: return
         val provider = s.provider ?: return
         val service = s.service ?: return
 
-        val problem = when {
-            isOffOn(provider, s.date) -> "${provider.name} is off on this day. Please choose another date."
-            s.timeSlot.isBlank() -> "Please choose a time slot."
-            isSlotDisabled(s.date, s.timeSlot) -> "This slot is already over today. Please choose another."
-            s.timeSlot in busySlots.value -> "This slot was just booked by someone else. Please choose another."
-            s.address.isBlank() -> "Please enter the address."
-            else -> null
-        }
+        val problem = problemWith(s, provider)
         if (problem != null) {
-            _uiState.update { it.copy(error = problem) }
+            _uiState.update { it.copy(error = problem, reviewing = false) }   // back to the form to fix it
             return
         }
 
@@ -166,6 +199,8 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                     customer, provider, service,
                     date = s.date, timeSlot = s.timeSlot,
                     address = s.address.trim(), note = s.note.trim(), paymentMode = s.paymentMode,
+                    contactName = if (s.bookingForOther) s.contactName.trim() else "",
+                    contactPhone = if (s.bookingForOther) s.contactPhone else "",
                 )
                 _uiState.update { it.copy(isSaving = false, createdBookingId = id) }
             } catch (e: Exception) {
@@ -189,8 +224,15 @@ fun BookingFormScreen(
         state.createdBookingId?.let(onBooked)
     }
 
+    // On the summary, the phone's Back button returns to the form instead of leaving
+    BackHandler(enabled = state.reviewing) { viewModel.backToEdit() }
+
     Column(Modifier.fillMaxSize()) {
-        ScreenHeader("Book service", onBack)
+        ScreenHeader(
+            if (state.reviewing) "Review booking" else "Book service",
+            onBack = { if (state.reviewing) viewModel.backToEdit() else onBack() },
+            subtitle = if (state.reviewing) "Check everything before confirming" else null,
+        )
         val service = state.service
         val provider = state.provider
         if (service == null || provider == null) {
@@ -199,7 +241,9 @@ fun BookingFormScreen(
             return@Column
         }
 
-        Column(
+        if (state.reviewing) {
+            ReviewSummary(state, service, provider, onEdit = viewModel::backToEdit, modifier = Modifier.weight(1f))
+        } else Column(
             Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
@@ -268,6 +312,17 @@ fun BookingFormScreen(
             }
             TextInput(state.address, viewModel::onAddressChange, "Service address", singleLine = false)
 
+            SectionTitle("Booking for")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = !state.bookingForOther, onClick = { viewModel.onBookingForChange(false) }, label = { Text("Myself") })
+                FilterChip(selected = state.bookingForOther, onClick = { viewModel.onBookingForChange(true) }, label = { Text("Someone else") })
+            }
+            if (state.bookingForOther) {
+                Caption("The professional will contact this person at the address.")
+                TextInput(state.contactName, viewModel::onContactNameChange, "Their name, e.g. Mum")
+                TextInput(state.contactPhone, viewModel::onContactPhoneChange, "Their phone (10 digits)", keyboardType = KeyboardType.Phone)
+            }
+
             SectionTitle("Problem (optional)")
             TextInput(state.note, viewModel::onNoteChange, "e.g. kitchen tap leaking", singleLine = false)
 
@@ -304,13 +359,75 @@ fun BookingFormScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Button(
-                onClick = viewModel::confirm,
+                // Step 1: review the details. Step 2 (on the summary): really save the booking.
+                onClick = if (state.reviewing) viewModel::confirm else viewModel::review,
                 enabled = !state.isSaving,
                 modifier = Modifier.height(50.dp),
             ) {
-                Text(if (state.isSaving) "Booking..." else "Confirm booking")
+                Text(
+                    when {
+                        state.isSaving -> "Booking..."
+                        state.reviewing -> "Confirm booking"
+                        else -> "Review booking"
+                    }
+                )
             }
         }
+    }
+}
+
+/** The summary shown before confirming, with "Edit" to go back and change anything. */
+@Composable
+private fun ReviewSummary(
+    state: BookingFormUiState,
+    service: Service,
+    provider: Provider,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ReviewSection("Service", onEdit) {
+            InfoRow("Service", service.name)
+            InfoRow("Professional", provider.name)
+        }
+        ReviewSection("When", onEdit) {
+            InfoRow("Date", DateUtils.pretty(state.date))
+            InfoRow("Slot", state.timeSlot)
+        }
+        ReviewSection("Where", onEdit) {
+            InfoRow("Address", state.address.trim())
+            if (state.bookingForOther) {
+                InfoRow("Contact person", state.contactName.trim())
+                InfoRow("Their phone", state.contactPhone)
+            } else {
+                InfoRow("Contact person", "You")
+            }
+            if (state.note.isNotBlank()) InfoRow("Problem", state.note.trim())
+        }
+        ReviewSection("Payment", onEdit) {
+            InfoRow(service.name, rupees(service.price))
+            InfoRow("Visit fee", rupees(FixedData.VISIT_FEE))
+            HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant)
+            InfoRow("Total", rupees(service.price + FixedData.VISIT_FEE), bold = true)
+            InfoRow("Pay by", "${state.paymentMode}, after the service")
+            Caption(FixedData.PRICE_NOTE, modifier = Modifier.padding(top = 6.dp))
+        }
+        Caption("Nothing is booked yet. Tap Confirm booking to send the request to ${provider.name}.")
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+@Composable
+private fun ReviewSection(title: String, onEdit: () -> Unit, content: @Composable () -> Unit) {
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = onEdit) { Text("Edit") }
+        }
+        content()
     }
 }
 

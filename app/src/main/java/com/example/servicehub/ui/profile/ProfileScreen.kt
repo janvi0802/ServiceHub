@@ -47,6 +47,8 @@ import androidx.compose.runtime.setValue
 import com.example.servicehub.ui.components.DropdownField
 import com.example.servicehub.ui.components.TextInput
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.AlertDialog
@@ -89,6 +91,8 @@ private fun AddAddressDialog(onSave: (String, String) -> Unit, onDismiss: () -> 
 @Composable
 fun ProfileScreen(
     onLoggedOut: () -> Unit,
+    onOpenFavorites: () -> Unit,
+    onOpenHelp: () -> Unit,
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -197,6 +201,10 @@ fun ProfileScreen(
 
             // Account
             AppCard {
+                if (!state.isProvider) {
+                    ListRow(Icons.Filled.Favorite, "My favourites", "Professionals you saved", onClick = onOpenFavorites)
+                }
+                ListRow(Icons.AutoMirrored.Filled.HelpOutline, "Help & support", "Answers to common questions", onClick = onOpenHelp)
                 ListRow(
                     Icons.AutoMirrored.Filled.Logout, "Log out", null,
                     color = MaterialTheme.colorScheme.error,

@@ -73,10 +73,15 @@ object AdminRepository {
         db.collection("users").document(userId).update("isBlocked", blocked).await()
     }
 
-    /** Admin edits a service's price and description. */
-    suspend fun updateService(serviceId: String, price: Int, description: String) {
+    /** Admin edits a service's price, description and its "included / not included" points. */
+    suspend fun updateService(serviceId: String, price: Int, description: String, included: String, notIncluded: String) {
         db.collection("services").document(serviceId)
-            .update(mapOf("price" to price, "description" to description)).await()
+            .update(
+                mapOf(
+                    "price" to price, "description" to description,
+                    "included" to included, "notIncluded" to notIncluded,
+                )
+            ).await()
     }
 
     /** Admin adds a whole new category, e.g. "Yoga Teacher" with the yoga icon. Goes after the others. */

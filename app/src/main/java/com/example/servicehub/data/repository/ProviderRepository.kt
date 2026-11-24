@@ -45,6 +45,14 @@ object ProviderRepository {
             .liveList(User::class.java)
             .map { users -> users.map { it.id }.toSet() }
 
+    /**
+     * Several providers by id, live (for the Favourites screen).
+     * Firestore's "whereIn" accepts up to 30 values, so we keep only the first 30 favourites.
+     */
+    fun liveProviders(ids: List<String>): Flow<List<Provider>> =
+        if (ids.isEmpty()) kotlinx.coroutines.flow.flowOf(emptyList())
+        else providers.whereIn("id", ids.take(30)).liveList(Provider::class.java)
+
     /** One provider, live (rating and job count update by themselves). */
     fun liveProvider(providerId: String): Flow<Provider?> =
         providers.document(providerId).liveObject(Provider::class.java)
