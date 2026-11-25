@@ -16,6 +16,9 @@ import com.example.servicehub.data.model.GUARANTEE_DAYS
 import com.example.servicehub.data.model.RevisitStatus
 import com.example.servicehub.data.model.canRequestRevisitAt
 import com.example.servicehub.data.model.SlotInfo
+import com.example.servicehub.data.model.SlotState
+import com.example.servicehub.data.model.ANSWER_WINDOW_MILLIS
+import com.example.servicehub.data.model.slotStateAt
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.model.isOffOn
 import com.google.firebase.firestore.FieldValue
@@ -61,14 +64,30 @@ object BookingRepository {
 
     private fun slotRef(booking: Booking) = slotRef(booking.providerId, booking.date, booking.timeSlot)
 
-    /** What a slot document stores: who holds it (no address, phone or names). */
-    private fun slotData(booking: Booking) = mapOf(
+    /**
+     * What a slot document stores: who holds it (no address, phone or names),
+     * until when an unanswered request holds it, and whether the provider accepted.
+     */
+    private fun slotData(booking: Booking, now: Long) = mapOf(
         "providerId" to booking.providerId,
         "customerId" to booking.customerId,
         "bookingId" to booking.id,
         "date" to booking.date,
         "timeSlot" to booking.timeSlot,
+        "heldUntil" to now + ANSWER_WINDOW_MILLIS,
+        "accepted" to false,
     )
+
+    /** True if this slot document is taken right now (accepted, or a request still within its hour). */
+    private fun isTaken(slot: com.google.firebase.firestore.DocumentSnapshot, now: Long): Boolean {
+        if (!slot.exists()) return false
+        val info = slot.toObject(SlotInfo::class.java) ?: return true
+        return slotStateAt(info, now) != null
+    }
+
+    /** True if this slot document belongs to [bookingId] (only then may this booking free it). */
+    private fun ownsSlot(slot: com.google.firebase.firestore.DocumentSnapshot, bookingId: String) =
+        slot.exists() && slot.getString("bookingId") == bookingId
 
     // ---------------------------------------------------------------- reading (live)
 
@@ -88,11 +107,15 @@ object BookingRepository {
      * Live set of a provider's busy slots on one date, e.g. {"Morning (9 AM – 12 PM)"}.
      * The booking form greys these out, so the customer never picks a taken slot.
      */
-    fun busySlots(providerId: String, date: String): Flow<Set<String>> =
+    fun busySlots(providerId: String, date: String): Flow<Map<String, SlotState>> =
         slots.whereEqualTo("providerId", providerId)
             .whereEqualTo("date", date)
             .liveList(SlotInfo::class.java)
-            .map { list -> list.map { it.timeSlot }.toSet() }
+            .map { list ->
+                val now = System.currentTimeMillis()
+                // Old unanswered holds (more than 1 hour) are left out: those slots are free again.
+                list.mapNotNull { info -> slotStateAt(info, now)?.let { info.timeSlot to it } }.toMap()
+            }
 
     /** One booking, live. Both phones see every status change instantly. */
     fun liveBooking(bookingId: String): Flow<Booking?> =
@@ -116,6 +139,8 @@ object BookingRepository {
         paymentMode: String,
         contactName: String = "",
         contactPhone: String = "",
+        /** Coupon typed by the customer ("" = none). Checked again here with the latest data. */
+        couponCode: String = "",
     ): String {
         // Check again with the LATEST data: the provider or service may have changed
         // while the customer was filling in the form.
@@ -141,6 +166,10 @@ object BookingRepository {
         if (!FixedData.isBookableTime(date, timeSlot, DateUtils.today(), currentHour())) {
             throw BookingException("That time has already passed. Please choose a later slot.")
         }
+        // Coupon: checked again now (the admin may have turned it off meanwhile)
+        val baseAmount = latestService.price + FixedData.VISIT_FEE
+        val (usedCode, discount) = if (couponCode.isBlank()) "" to 0
+        else CouponRepository.check(couponCode, baseAmount).let { (coupon, off) -> coupon.code to off }
         val ref = bookings.document()          // creates a new random id
         val now = System.currentTimeMillis()
         val booking = Booking(
@@ -150,21 +179,23 @@ object BookingRepository {
             categoryId = latestService.categoryId, serviceId = latestService.id, serviceName = latestService.name,
             servicePrice = latestService.price,     // latest price, in case the admin just changed it
             visitFee = FixedData.VISIT_FEE,
-            totalAmount = latestService.price + FixedData.VISIT_FEE,
+            totalAmount = baseAmount - discount,
+            couponCode = usedCode, discount = discount,
             date = date, timeSlot = timeSlot, address = address, note = note,
             contactName = contactName, contactPhone = contactPhone,
             status = BookingStatus.REQUESTED.name,
             startPin = Random.nextInt(1000, 10000).toString(),   // 4 digits: 1000..9999
             paymentMode = paymentMode,
             paymentStatus = PaymentStatus.PENDING,
-            createdAt = now, updatedAt = now,
+            createdAt = now, updatedAt = now, requestedAt = now,
         )
         val slot = slotRef(booking)
         db.runTransaction<Unit> { transaction ->
-            if (transaction.get(slot).exists()) {
+            // An old unanswered hold (over 1 hour) does not block: we take the slot over.
+            if (isTaken(transaction.get(slot), now)) {
                 throw BookingException("${provider.name} is already booked for this slot. Please choose another date or slot.")
             }
-            transaction.set(slot, slotData(booking))   // claim the slot
+            transaction.set(slot, slotData(booking, now))   // claim the slot
             transaction.set(ref, booking)              // save the booking
             Unit
         }.await()
@@ -205,21 +236,40 @@ object BookingRepository {
                 throw BookingException("Not possible: this booking is already ${booking.bookingStatus.label}.")
             }
             check(booking)
+            // Read the slot BEFORE writing (transaction rule). Free it only if it is still ours:
+            // after an unanswered hour, another customer may have taken it.
+            val slot = if (releaseSlot) transaction.get(slotRef(booking)) else null
             transaction.update(ref, changes + ("updatedAt" to System.currentTimeMillis()))
-            if (releaseSlot) transaction.delete(slotRef(booking))
+            if (slot != null && ownsSlot(slot, booking.id)) transaction.delete(slot.reference)
             booking
         }.await()
     }
 
-    /** Provider: REQUESTED -> ACCEPTED (not if the request has already expired) */
+    /**
+     * Provider: REQUESTED -> ACCEPTED (not if the request has already expired).
+     * The slot becomes "Booked" (accepted = true). If the provider answered after the hour and
+     * another customer has taken that slot meanwhile, accepting is refused.
+     */
     suspend fun accept(bookingId: String) {
-        val b = changeBooking(
-            bookingId, setOf(BookingStatus.REQUESTED),
-            mapOf("status" to BookingStatus.ACCEPTED.name, "acceptedAt" to System.currentTimeMillis()),
-            check = { booking ->
-                if (booking.isExpired) throw BookingException("This request has expired: its time has already passed.")
-            },
-        )
+        val ref = bookings.document(bookingId)
+        val b = db.runTransaction<Booking> { transaction ->
+            val booking = transaction.get(ref).toObject(Booking::class.java)
+                ?: throw BookingException("Booking not found.")
+            if (booking.bookingStatus != BookingStatus.REQUESTED) {
+                throw BookingException("Not possible: this booking is already ${booking.bookingStatus.label}.")
+            }
+            if (booking.isExpired) throw BookingException("This request has expired: its time has already passed.")
+            val slotRef = slotRef(booking)
+            val slot = transaction.get(slotRef)
+            val now = System.currentTimeMillis()
+            if (slot.exists() && !ownsSlot(slot, booking.id) && isTaken(slot, now)) {
+                throw BookingException("This slot was taken by another customer after 1 hour without an answer. Call the customer to choose a new time.")
+            }
+            transaction.update(ref, mapOf("status" to BookingStatus.ACCEPTED.name, "acceptedAt" to now, "updatedAt" to now))
+            // Mark (or re-create) the slot as really booked by this booking
+            transaction.set(slotRef, slotData(booking, now) + ("accepted" to true))
+            booking
+        }.await()
         NotificationRepository.send(
             b.customerId, "Booking accepted",
             "${b.providerName} accepted your ${b.serviceName} on ${slotText(b)}. Your start PIN is in the booking.", b.id,
@@ -262,6 +312,9 @@ object BookingRepository {
                 "revisitStatus" to RevisitStatus.REQUESTED,
                 "revisitReason" to reason,
                 "revisitRequestedAt" to System.currentTimeMillis(),
+                // The customer tells this PIN to the provider when they come back,
+                // so "redone" can only be marked by someone who was really at the house.
+                "revisitPin" to Random.nextInt(1000, 10000).toString(),
             ),
             check = { booking ->
                 if (!canRequestRevisitAt(booking, System.currentTimeMillis())) {
@@ -275,13 +328,16 @@ object BookingRepository {
         )
     }
 
-    /** Provider: the free revisit has been done. */
-    suspend fun markRevisitDone(bookingId: String) {
+    /** Provider: the free revisit has been done. Needs the customer's redo PIN (proof of the visit). */
+    suspend fun markRevisitDone(bookingId: String, enteredPin: String) {
         val b = changeBooking(
             bookingId, setOf(BookingStatus.COMPLETED),
             mapOf("revisitStatus" to RevisitStatus.DONE, "revisitDoneAt" to System.currentTimeMillis()),
             check = { booking ->
                 if (booking.revisitStatus != RevisitStatus.REQUESTED) throw BookingException("No job redo is waiting for this booking.")
+                if (booking.revisitPin.isNotEmpty() && booking.revisitPin != enteredPin.trim()) {
+                    throw BookingException("Wrong redo PIN. Ask the customer for the 4-digit redo PIN in their booking.")
+                }
             },
         )
         NotificationRepository.send(
@@ -358,19 +414,23 @@ object BookingRepository {
             if (current.bookingStatus != BookingStatus.REQUESTED && current.bookingStatus != BookingStatus.ACCEPTED) {
                 throw BookingException("Not possible: this booking is already ${current.bookingStatus.label}.")
             }
-            if (transaction.get(newSlotRef).exists()) {
+            val now = System.currentTimeMillis()
+            if (isTaken(transaction.get(newSlotRef), now)) {
                 throw BookingException("${current.providerName} is already booked for that slot. Choose another.")
             }
-            // then writes
-            transaction.delete(slotRef(current))
+            val oldSlot = transaction.get(slotRef(current))
+            // then writes (free the old slot only if it is still ours)
+            if (ownsSlot(oldSlot, current.id)) transaction.delete(oldSlot.reference)
             val moved = current.copy(date = newDate, timeSlot = newSlot)
-            transaction.set(newSlotRef, slotData(moved))
+            transaction.set(newSlotRef, slotData(moved, now))
             transaction.update(
                 ref,
                 mapOf(
                     "date" to newDate, "timeSlot" to newSlot,
                     "status" to BookingStatus.REQUESTED.name, "acceptedAt" to 0L,
-                    "updatedAt" to System.currentTimeMillis(),
+                    "updatedAt" to now,
+                    // a new hour starts for the provider to answer
+                    "requestedAt" to now, "noAnswerNotified" to false,
                 ),
             )
             Unit
@@ -383,17 +443,16 @@ object BookingRepository {
     }
 
     /**
-     * Provider: IN_PROGRESS -> COMPLETED after confirming "Payment received".
+     * Provider: IN_PROGRESS -> COMPLETED. Payment is a SEPARATE next step:
+     * Cash -> the provider taps "Cash collected" ([markCashCollected]);
+     * UPI  -> the customer taps "Pay now" ([markPaidOnline]) and the provider sees it automatically.
      * [extras] = spare parts / extra work added now (e.g. "Tap cartridge" ₹180); they are added
      * to the total. In the SAME transaction we add 1 job and the provider's share to their totals,
-     * so the booking and the provider's earnings can never disagree.
+     * so the booking and the provider's totals can never disagree.
      */
     suspend fun complete(
         bookingId: String,
-        paymentMode: String,
         extras: List<ExtraItem> = emptyList(),
-        /** true = money already received (cash, or UPI to the provider). false = customer pays in the app. */
-        paidNow: Boolean = true,
     ) {
         val cleanExtras = validateExtras(extras)
         val extraSum = cleanExtras.sumOf { it.amount }
@@ -406,16 +465,16 @@ object BookingRepository {
                 throw BookingException("Only a job in progress can be completed.")
             }
             val providerRef = db.collection("providers").document(booking.providerId)
+            val slot = transaction.get(slotRef(booking))
             val now = System.currentTimeMillis()
-            val newTotal = booking.servicePrice + booking.visitFee + extraSum
+            val newTotal = booking.servicePrice + booking.visitFee + extraSum - booking.discount
             val updated = booking.copy(totalAmount = newTotal)
 
             transaction.update(
                 bookingRef,
                 mapOf(
                     "status" to BookingStatus.COMPLETED.name,
-                    "paymentMode" to paymentMode,
-                    "paymentStatus" to if (paidNow) PaymentStatus.PAID else PaymentStatus.PENDING,
+                    "paymentStatus" to PaymentStatus.PENDING,
                     // stored as simple name/amount maps (reads back as ExtraItem objects)
                     "extraItems" to cleanExtras.map { mapOf("name" to it.name, "amount" to it.amount) },
                     "extraAmount" to extraSum,
@@ -432,15 +491,37 @@ object BookingRepository {
                     "totalEarnings" to FieldValue.increment(updated.providerEarning.toLong()),
                 ),
             )
-            transaction.delete(slotRef(booking))   // job finished: slot no longer busy
+            if (ownsSlot(slot, booking.id)) transaction.delete(slot.reference)   // job finished: slot no longer busy
             updated
         }.await()
         val extrasText = if (extraSum > 0) " (incl. ₹$extraSum extra parts/work)" else ""
         NotificationRepository.send(
             b.customerId, "Job completed",
-            if (paidNow) "${b.serviceName} is done. Paid ₹${b.totalAmount} by $paymentMode$extrasText. Please rate ${b.providerName}!"
-            else "${b.serviceName} is done. Please pay ₹${b.totalAmount}$extrasText with UPI in the app.",
+            if (b.paymentMode == "UPI") "${b.serviceName} is done. Please pay ₹${b.totalAmount}$extrasText with UPI in the app."
+            else "${b.serviceName} is done. Please pay ₹${b.totalAmount}$extrasText in cash to ${b.providerName}.",
             b.id,
+        )
+    }
+
+    /**
+     * Provider: the customer paid in CASH (also used when a UPI customer pays cash instead).
+     * COMPLETED + payment PENDING -> PAID.
+     */
+    suspend fun markCashCollected(bookingId: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.COMPLETED),
+            mapOf(
+                "paymentStatus" to PaymentStatus.PAID,
+                "paymentMode" to "Cash",
+                "paidAt" to System.currentTimeMillis(),
+            ),
+            check = { booking ->
+                if (booking.paymentStatus == PaymentStatus.PAID) throw BookingException("This booking is already paid.")
+            },
+        )
+        NotificationRepository.send(
+            b.customerId, "Cash payment confirmed",
+            "${b.providerName} confirmed receiving ₹${b.totalAmount} in cash for ${b.serviceName}. Please rate the service!", b.id,
         )
     }
 
@@ -462,8 +543,38 @@ object BookingRepository {
             },
         )
         NotificationRepository.send(
-            b.providerId, "Payment received",
-            "${b.customerName} paid ₹${b.totalAmount} online for ${b.serviceName}.", b.id,
+            b.providerId, "UPI payment received",
+            "${b.customerName} paid ₹${b.totalAmount} by UPI for ${b.serviceName}. Payment ID: $paymentId", b.id,
+        )
+    }
+
+    /**
+     * Customer's app noticed the provider did not answer within 1 hour: tell the customer once
+     * (an in-app notification; push notifications would need a paid server).
+     */
+    suspend fun notifyNoAnswer(booking: Booking) {
+        bookings.document(booking.id).update("noAnswerNotified", true).await()
+        NotificationRepository.send(
+            booking.customerId, "No answer from ${booking.providerName}",
+            "${booking.providerName} has not answered your ${booking.serviceName} request for 1 hour. " +
+                "Choose another provider, change the time, or keep waiting.", booking.id,
+        )
+    }
+
+    /** Customer changes Cash <-> UPI before the payment is made. The provider sees it live. */
+    suspend fun changePaymentMode(bookingId: String, mode: String) {
+        if (mode !in FixedData.paymentModes) throw BookingException("Choose Cash or UPI.")
+        val b = changeBooking(
+            bookingId,
+            setOf(BookingStatus.REQUESTED, BookingStatus.ACCEPTED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED),
+            mapOf("paymentMode" to mode),
+            check = { booking ->
+                if (booking.paymentStatus == PaymentStatus.PAID) throw BookingException("This booking is already paid.")
+            },
+        )
+        NotificationRepository.send(
+            b.providerId, "Payment method changed",
+            "${b.customerName} will pay for ${b.serviceName} by $mode.", b.id,
         )
     }
 

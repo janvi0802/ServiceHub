@@ -37,6 +37,7 @@ fun BookingInfoCard(booking: Booking, personLabel: String, personName: String) {
             // Spare parts / extra work added by the provider at completion
             booking.extraItems.forEach { InfoRow(it.name, rupees(it.amount)) }
             InfoRow("Visit fee", rupees(booking.visitFee))
+            if (booking.discount > 0) InfoRow("Coupon ${booking.couponCode}", "− ${rupees(booking.discount)}")
             InfoRow("Total", rupees(booking.totalAmount), bold = true)
             InfoRow(
                 "Payment",

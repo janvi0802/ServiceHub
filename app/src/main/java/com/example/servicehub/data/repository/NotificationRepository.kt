@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 /**
- * In-app notifications (no push notifications).
+ * In-app notifications (plus a push to the phone, see push/PushService.kt).
  * Each important event writes one document to "notifications" for the person who should see it.
  * The other phone is listening live, so the bell count goes up right away.
  */
@@ -31,6 +31,8 @@ object NotificationRepository {
                     bookingId = bookingId, isRead = false, createdAt = System.currentTimeMillis(),
                 )
             ).await()
+            // Also show it on their phone's notification bar (push), if the server is set up
+            com.example.servicehub.push.Push.send(ref.id)
         }
     }
 

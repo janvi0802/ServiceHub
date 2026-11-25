@@ -35,6 +35,12 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
     }
 
+    // This person is the customer or the provider of that booking.
+    function isOnBooking(bookingId, uid) {
+      let b = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return b.customerId == uid || b.providerId == uid;
+    }
+
     // ------------------------------------------------------------ users
 
     match /users/{uid} {
@@ -56,7 +62,7 @@ service cloud.firestore {
       // You can never change your own role or blocked status. The admin can change anything.
       allow update: if isAdmin() || (
         active() && request.auth.uid == uid
-        && onlyChanges(['name', 'phone', 'area', 'address', 'savedAddresses', 'favoriteProviderIds'])
+        && onlyChanges(['name', 'phone', 'area', 'address', 'savedAddresses', 'favoriteProviderIds', 'fcmToken', 'fcmTokenAt'])
       );
 
       allow delete: if false;
@@ -77,13 +83,21 @@ service cloud.firestore {
       ) || isAdmin();
 
       allow update: if isAdmin()
-        // The provider: profile, availability switch, and the totals that change
-        // when they complete a job. NOT approvalStatus (only the admin approves).
+        // The provider: profile and availability switch. NOT approvalStatus (only the admin approves).
         || (active() && request.auth.uid == uid
             && onlyChanges(['name', 'phone', 'area', 'bio', 'experienceYears',
-                            'isAvailable', 'offDays', 'extraWorkDates', 'jobsCompleted', 'totalEarnings']))
-        // A customer leaving a review may change only the rating fields.
-        || (active() && onlyChanges(['ratingAvg', 'ratingCount']));
+                            'isAvailable', 'offDays', 'extraWorkDates']))
+        // Completing a job: exactly +1 job, and earnings can only go UP (by at most one job's
+        // biggest possible bill: service + up to 10 extras of ₹50,000). So no fake totals.
+        || (active() && request.auth.uid == uid
+            && onlyChanges(['jobsCompleted', 'totalEarnings'])
+            && request.resource.data.jobsCompleted == resource.data.jobsCompleted + 1
+            && request.resource.data.totalEarnings >= resource.data.totalEarnings
+            && request.resource.data.totalEarnings <= resource.data.totalEarnings + 600000)
+        // A customer leaving a review: exactly ONE more rating, and the average stays 1 to 5.
+        || (active() && onlyChanges(['ratingAvg', 'ratingCount'])
+            && request.resource.data.ratingCount == resource.data.ratingCount + 1
+            && request.resource.data.ratingAvg >= 1 && request.resource.data.ratingAvg <= 5);
 
       allow delete: if false;
     }
@@ -106,6 +120,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ------------------------------------------------------------ coupons
+
+    match /coupons/{code} {
+      // Any logged-in customer may check a code; only the admin creates or turns them on/off.
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     // ------------------------------------------------------------ bookings
 
     match /bookings/{bookingId} {
@@ -120,18 +142,46 @@ service cloud.firestore {
       // A customer creates a booking for themselves, always starting as REQUESTED.
       allow create: if active()
         && request.resource.data.customerId == request.auth.uid
-        && request.resource.data.status == 'REQUESTED';
+        && request.resource.data.status == 'REQUESTED'
+        // A discount is only allowed with a coupon that really exists and is active.
+        && (request.resource.data.get('discount', 0) == 0
+            || get(/databases/$(database)/documents/coupons/$(request.resource.data.couponCode)).data.isActive == true);
 
-      // Only the booking's own customer or its assigned provider (or the admin) can change it.
-      // The app's transactions make sure only the allowed status moves happen.
-      allow update: if isAdmin() || (
-        active()
-        && (resource.data.customerId == request.auth.uid || resource.data.providerId == request.auth.uid)
-        && request.resource.data.customerId == resource.data.customerId   // nobody can move a
-        && request.resource.data.providerId == resource.data.providerId   // booking to other people
-      );
+      // Only the booking's own customer or its assigned provider (or the admin) can change it,
+      // and each side may change ONLY its own fields. The app's transactions make sure only
+      // the allowed status moves happen.
+      allow update: if isAdmin()
+        // The CUSTOMER: cancel, reschedule (back to REQUESTED), pay online, rate, ask for a redo.
+        // They can never set COMPLETED / IN_PROGRESS, change prices, or mark cash as collected.
+        || (active() && resource.data.customerId == request.auth.uid
+            && onlyChanges(['status', 'cancelReason', 'date', 'timeSlot', 'acceptedAt', 'updatedAt',
+                            'paymentStatus', 'paymentMode', 'paymentId', 'paidAt', 'isRated',
+                            'revisitStatus', 'revisitReason', 'revisitRequestedAt', 'revisitPin',
+                            'requestedAt', 'noAnswerNotified'])
+            && request.resource.data.status in [resource.data.status, 'CANCELLED', 'REQUESTED']
+            // "Paid" by the customer only with an online payment id
+            && (request.resource.data.paymentStatus == resource.data.paymentStatus
+                || request.resource.data.paymentId != ''))
+        // The PROVIDER: accept / reject / start / complete / cancel, on-the-way, extras,
+        // cash collected, redo done. They can never change the PINs, the customer or the price list.
+        || (active() && resource.data.providerId == request.auth.uid
+            && onlyChanges(['status', 'rejectReason', 'cancelReason', 'acceptedAt', 'startedAt',
+                            'completedAt', 'updatedAt', 'onTheWayAt', 'paymentStatus', 'paymentMode',
+                            'paidAt', 'extraItems', 'extraAmount', 'totalAmount',
+                            'revisitStatus', 'revisitDoneAt']));
 
       allow delete: if false;
+
+      // Chat inside this booking: only its customer and its provider.
+      // You may only send messages as yourself (max 500 characters). Messages are never edited or deleted.
+      match /messages/{messageId} {
+        allow read: if signedIn() && isOnBooking(bookingId, request.auth.uid);
+        allow create: if active() && isOnBooking(bookingId, request.auth.uid)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500;
+        allow update, delete: if false;
+      }
     }
 
     // ------------------------------------------------------------ slots (busy markers)
@@ -143,9 +193,21 @@ service cloud.firestore {
       // Anyone logged in may check if a slot is busy.
       allow read: if signedIn();
 
-      // A customer claims a slot for their own booking. It can never be edited afterwards.
-      allow create: if active() && request.resource.data.customerId == request.auth.uid;
-      allow update: if false;
+      // A customer claims a slot for their own booking (or the provider, when accepting).
+      allow create: if active() && (request.resource.data.customerId == request.auth.uid
+                                    || request.resource.data.providerId == request.auth.uid);
+
+      // Changing a slot:
+      //  - its provider marks it "accepted" (Booked) when accepting the request;
+      //  - another customer may take it over ONLY if it was never accepted and its
+      //    1-hour hold is over (the provider did not answer in time).
+      allow update: if active() && (
+        (resource.data.providerId == request.auth.uid
+          && request.resource.data.providerId == request.auth.uid)
+        || (request.resource.data.customerId == request.auth.uid
+          && resource.data.get('accepted', false) == false
+          && resource.data.get('heldUntil', 9999999999999) < request.time.toMillis())
+      );
 
       // Freed by the booking's customer (cancel/reschedule) or provider (reject/complete).
       // "resource == null" allows deleting a slot that was never created (older bookings).
@@ -194,8 +256,14 @@ service cloud.firestore {
       // You can read only your own notifications.
       allow read: if signedIn() && resource.data.userId == request.auth.uid;
 
-      // Any active user can send one (e.g. a customer's booking notifies the provider).
-      allow create: if active();
+      // The admin can send any notification. Everyone else only about a booking they
+      // belong to, and only to the other person on that booking (or themselves).
+      allow create: if isAdmin() || (
+        active()
+        && request.resource.data.bookingId != ''
+        && isOnBooking(request.resource.data.bookingId, request.auth.uid)
+        && isOnBooking(request.resource.data.bookingId, request.resource.data.userId)
+      );
 
       // You can only mark your own notifications as read.
       allow update: if signedIn() && resource.data.userId == request.auth.uid

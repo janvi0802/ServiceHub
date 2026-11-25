@@ -41,10 +41,10 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     // ---- Razorpay results (passed on to RazorpayPayments, which tells the booking screen)
 
     override fun onPaymentSuccess(razorpayPaymentId: String?, paymentData: PaymentData?) {
-        RazorpayPayments.onSuccess(razorpayPaymentId)
+        RazorpayPayments.onSuccess(applicationContext, razorpayPaymentId)
     }
 
     override fun onPaymentError(code: Int, description: String?, paymentData: PaymentData?) {
-        RazorpayPayments.onError(description)
+        RazorpayPayments.onError(applicationContext, description)
     }
 }

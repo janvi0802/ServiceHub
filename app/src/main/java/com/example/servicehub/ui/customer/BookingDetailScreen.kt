@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -83,6 +84,7 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun BookingDetailScreen(
     onBack: () -> Unit,
+    onOpenChat: (String) -> Unit,
     onRate: (String) -> Unit,
     onReceipt: (String) -> Unit,
     onBookAgain: (providerId: String, serviceId: String) -> Unit,
@@ -94,12 +96,13 @@ fun BookingDetailScreen(
     val message by viewModel.message.collectAsState()
     val context = LocalContext.current
 
-    // Listen for the Razorpay result (it arrives through MainActivity) and record it on this booking
+    // The payment itself is saved by RazorpayPayments (even if this screen closes);
+    // here we only show the result message.
     LaunchedEffect(Unit) {
         RazorpayPayments.results.collect { result ->
             val current = (viewModel.booking.value as? BookingLoad.Loaded)?.booking ?: return@collect
             when (result) {
-                is PaymentResult.Success -> if (result.bookingId == current.id) viewModel.markPaidOnline(result.paymentId)
+                is PaymentResult.Success -> if (result.bookingId == current.id) viewModel.showMessage("Payment successful. Thank you!")
                 is PaymentResult.Failure -> if (result.bookingId == current.id) viewModel.showMessage(result.message)
             }
         }
@@ -134,6 +137,26 @@ fun BookingDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusSteps(status)
+            com.example.servicehub.ui.booking.NextStepCard(com.example.servicehub.ui.booking.customerNextStep(booking))
+
+            // Provider did not answer within 1 hour: offer the two ways forward right here
+            LaunchedEffect(booking.id, booking.isNoAnswer) { viewModel.notifyNoAnswerOnce(booking) }
+            if (booking.isNoAnswer) {
+                AppCard {
+                    Text("No answer from ${booking.providerName} yet", style = MaterialTheme.typography.titleSmall)
+                    Caption("It has been over 1 hour. The slot is open to others again. You can keep waiting, or:")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                        Button(
+                            onClick = { onFindAnotherProvider(booking.categoryId, booking.serviceId) },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Other provider") }
+                        OutlinedButton(
+                            onClick = { viewModel.clearMessage(); showReschedule = true },
+                            modifier = Modifier.weight(1f),
+                        ) { Text("Change time") }
+                    }
+                }
+            }
             if (booking.isExpired) {
                 Text(
                     "This request expired: the provider did not accept it before its time. " +
@@ -164,24 +187,41 @@ fun BookingDetailScreen(
 
             // 7-day service guarantee
             when (booking.revisitStatus) {
-                RevisitStatus.REQUESTED -> InfoBanner(
-                    Icons.Filled.Replay,
-                    "Complaint sent – job redo requested: \"${booking.revisitReason}\". ${booking.providerName} will contact you.",
-                    StatusRequested,
-                )
+                RevisitStatus.REQUESTED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    InfoBanner(
+                        Icons.Filled.Replay,
+                        "Complaint sent – job redo requested: \"${booking.revisitReason}\". ${booking.providerName} will contact you.",
+                        StatusRequested,
+                    )
+                    if (booking.revisitPin.isNotEmpty()) {
+                        PinCard(
+                            booking.revisitPin, title = "Redo PIN",
+                            hint = "Tell this PIN to the professional only AFTER the job is fixed.",
+                        )
+                    }
+                }
                 RevisitStatus.DONE -> InfoBanner(Icons.Filled.TaskAlt, "The job was redone free of charge.", StatusCompleted)
             }
 
             BookingInfoCard(booking, "Provider", booking.providerName)
             TimelineCard(booking)
 
-            if (booking.bookingStatus.isActive) {
-                OutlinedButton(
-                    onClick = { openDialer(context, booking.providerPhone) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(Icons.Filled.Call, contentDescription = null)
-                    Text("  Call provider")
+            // Talk to the professional: call while active, chat until 7 days after the job
+            val chatOpen = com.example.servicehub.data.repository.canChatAt(booking, System.currentTimeMillis())
+            if (booking.bookingStatus.isActive || chatOpen) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (booking.bookingStatus.isActive) {
+                        OutlinedButton(onClick = { openDialer(context, booking.providerPhone) }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Filled.Call, contentDescription = null)
+                            Text("  Call")
+                        }
+                    }
+                    if (chatOpen) {
+                        OutlinedButton(onClick = { onOpenChat(booking.id) }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                            Text("  Chat")
+                        }
+                    }
                 }
             }
 
@@ -196,7 +236,32 @@ fun BookingDetailScreen(
                 }
             }
 
-            // Job done but not paid yet (UPI chosen): pay online in TEST mode
+            // Payment after the job: paid banner, cash reminder, or Pay now (UPI, test mode)
+            if (status == BookingStatus.COMPLETED && booking.paymentStatus == PaymentStatus.PAID) {
+                InfoBanner(
+                    Icons.Filled.CheckCircle,
+                    if (booking.paymentId.isNotEmpty()) "Paid ${rupees(booking.totalAmount)} by UPI. Payment ID: ${booking.paymentId}"
+                    else "Paid ${rupees(booking.totalAmount)} in cash. ${booking.providerName} confirmed it.",
+                    StatusCompleted,
+                )
+            }
+            if (status == BookingStatus.COMPLETED && booking.paymentStatus == PaymentStatus.PENDING && booking.paymentMode != "UPI") {
+                InfoBanner(
+                    Icons.Filled.Schedule,
+                    "Please pay ${rupees(booking.totalAmount)} in cash to ${booking.providerName}. They will confirm it in the app.",
+                    StatusRequested,
+                )
+            }
+            // Changed your mind about Cash / UPI? One tap, any time before paying.
+            if (booking.paymentStatus != PaymentStatus.PAID &&
+                (status.isActive || status == BookingStatus.COMPLETED) && !booking.isExpired
+            ) {
+                val other = if (booking.paymentMode == "UPI") "Cash" else "UPI"
+                TextButton(onClick = { viewModel.changePaymentMode(other) }, enabled = !isBusy, modifier = Modifier.fillMaxWidth()) {
+                    Text("Paying by ${booking.paymentMode.ifBlank { "Cash" }} · switch to $other")
+                }
+            }
+            // After the job, UPI can always be used (even if Cash was chosen); the provider can always mark cash
             if (status == BookingStatus.COMPLETED && booking.paymentStatus == PaymentStatus.PENDING) {
                 PayNowCard(
                     amount = booking.totalAmount,
@@ -350,7 +415,11 @@ private fun StatusHint(status: BookingStatus, cancelledByProvider: Boolean) {
 }
 
 @Composable
-private fun PinCard(pin: String) {
+private fun PinCard(
+    pin: String,
+    title: String = "Start-job PIN",
+    hint: String = "Tell this PIN to the provider only when they arrive.",
+) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -358,9 +427,9 @@ private fun PinCard(pin: String) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Start-job PIN", style = MaterialTheme.typography.labelLarge)
+        Text(title, style = MaterialTheme.typography.labelLarge)
         Text(pin, fontSize = 36.sp, fontWeight = FontWeight.Bold, letterSpacing = 8.sp)
-        Text("Tell this PIN to the provider only when they arrive.", style = MaterialTheme.typography.bodySmall)
+        Text(hint, style = MaterialTheme.typography.bodySmall)
     }
 }
 

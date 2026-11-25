@@ -116,11 +116,46 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
     val requestsFlow = remember(userId, role) {
         if (userId == null || role != Roles.PROVIDER) flowOf(0)
         else BookingRepository.providerBookings(userId)
-            .map { ProviderJobsViewModel.newRequests(it).size + ProviderJobsViewModel.revisits(it).size }
+            .map {
+                ProviderJobsViewModel.newRequests(it).size + ProviderJobsViewModel.revisits(it).size +
+                    // only cash still to collect needs the provider; UPI is paid by the customer
+                    ProviderJobsViewModel.paymentsToCollect(it).count { b -> b.paymentMode != "UPI" }
+            }
             .catch { emit(0) }
     }
     val requestCount by requestsFlow.collectAsState(initial = 0)
-    val badges = mapOf(Routes.NOTIFICATIONS to unreadCount, Routes.PROVIDER_REQUESTS to requestCount)
+
+    // Admin: red numbers on Approvals (providers waiting) and Dashboard (open complaints)
+    val pendingFlow = remember(userId, role) {
+        if (userId == null || role != Roles.ADMIN) flowOf(0)
+        else com.example.servicehub.data.repository.AdminRepository.pendingProviders().map { it.size }.catch { emit(0) }
+    }
+    val pendingCount by pendingFlow.collectAsState(initial = 0)
+    val complaintsFlow = remember(userId, role) {
+        if (userId == null || role != Roles.ADMIN) flowOf(0)
+        else com.example.servicehub.data.repository.ComplaintRepository.all()
+            .map { list -> list.count { it.status == com.example.servicehub.data.model.ComplaintStatus.OPEN } }
+            .catch { emit(0) }
+    }
+    val complaintCount by complaintsFlow.collectAsState(initial = 0)
+
+    val badges = mapOf(
+        Routes.NOTIFICATIONS to unreadCount,
+        Routes.PROVIDER_REQUESTS to requestCount,
+        Routes.ADMIN_PENDING_PROVIDERS to pendingCount,
+        Routes.ADMIN_DASHBOARD to complaintCount,
+    )
+
+    // Push notifications: after login, ask once for permission (Android 13+) and save this
+    // phone's push address (token) on the user's document.
+    val pushPermission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { /* allowed or not: in-app notifications work either way */ }
+    LaunchedEffect(userId) {
+        if (userId == null) return@LaunchedEffect
+        if (android.os.Build.VERSION.SDK_INT >= 33) pushPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        runCatching { com.example.servicehub.push.Push.registerThisPhone() }
+    }
 
     // Watch the logged-in person's own account: if the admin blocks them, log out at once.
     val meFlow = remember(userId) {
@@ -234,6 +269,15 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onOpenProvider = { providerId, serviceId ->
                         navController.navigate(Routes.providerDetail(providerId, serviceId))
                     },
+                    onBookService = { navController.navigate(Routes.BOOK_SERVICE) },
+                )
+            }
+            composable(Routes.BOOK_SERVICE) {
+                com.example.servicehub.ui.customer.BookServiceScreen(
+                    onBack = { navController.popBackStack() },
+                    onChooseProfessional = { categoryId, serviceId ->
+                        navController.navigate(Routes.providerList(categoryId, serviceId))
+                    },
                 )
             }
             composable(Routes.SEARCH) {
@@ -306,6 +350,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.BOOKING_DETAIL) {
                 BookingDetailScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenChat = { id -> navController.navigate(Routes.chat(id)) },
                     onRate = { id -> navController.navigate(Routes.rateReview(id)) },
                     onReceipt = { id -> navController.navigate(Routes.receipt(id)) },
                     onBookAgain = { providerId, serviceId ->
@@ -348,6 +393,7 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.JOB_DETAIL) {
                 JobDetailScreen(
                     onBack = { navController.popBackStack() },
+                    onOpenChat = { id -> navController.navigate(Routes.chat(id)) },
                     onReceipt = { id -> navController.navigate(Routes.receipt(id)) },
                 )
             }
@@ -361,7 +407,10 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                     onOpenPendingProviders = { navController.openTab(Routes.ADMIN_PENDING_PROVIDERS, Routes.ADMIN_DASHBOARD) },
                     onOpenAllProviders = { navController.navigate(Routes.ADMIN_ALL_PROVIDERS) },
                     onOpenUsers = { navController.openTab(Routes.ADMIN_USERS, Routes.ADMIN_DASHBOARD) },
-                    onOpenBookings = { navController.openTab(Routes.ADMIN_BOOKINGS, Routes.ADMIN_DASHBOARD) },
+                    onOpenBookings = { filter ->
+                        com.example.servicehub.ui.admin.AdminBookingsFilter.next = filter
+                        navController.openTab(Routes.ADMIN_BOOKINGS, Routes.ADMIN_DASHBOARD)
+                    },
                     onOpenComplaints = { navController.navigate(Routes.ADMIN_COMPLAINTS) },
                     onLoggedOut = onLoggedOut,
                 )
@@ -380,10 +429,24 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 )
             }
             composable(Routes.ADMIN_SERVICES) {
-                AdminServicesScreen(onOpenCategories = { navController.navigate(Routes.ADMIN_CATEGORIES) })
+                AdminServicesScreen(
+                    onOpenCategories = { navController.navigate(Routes.ADMIN_CATEGORIES) },
+                    onOpenCoupons = { navController.navigate(Routes.ADMIN_COUPONS) },
+                )
+            }
+            composable(Routes.ADMIN_COUPONS) {
+                com.example.servicehub.ui.admin.AdminCouponsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.ADMIN_CATEGORIES) { AdminCategoriesScreen(onBack = { navController.popBackStack() }) }
-            composable(Routes.ADMIN_BOOKINGS) { AdminBookingsScreen() }
+            composable(Routes.ADMIN_BOOKINGS) {
+                AdminBookingsScreen(onOpenBooking = { id -> navController.navigate(Routes.adminBookingDetail(id)) })
+            }
+            composable(Routes.ADMIN_BOOKING_DETAIL) {
+                com.example.servicehub.ui.admin.AdminBookingDetailScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.CHAT) {
+                com.example.servicehub.ui.common.ChatScreen(onBack = { navController.popBackStack() })
+            }
             composable(Routes.ADMIN_COMPLAINTS) { AdminComplaintsScreen(onBack = { navController.popBackStack() }) }
         }
     }

@@ -37,3 +37,14 @@ before changing anything, then signs the user out everywhere and sends them an i
 ## How to check it works
 Admin → Users → open a user with a real login → **Change password** → enter a new password twice → **Change**.
 Log in as that user with the new password.
+
+## Push notifications (`api/send-push.js`)
+
+The app asks this server to turn each in-app notification into a push on the receiver's phone.
+Nothing extra to set up: it uses the same project and the same `FIREBASE_SERVICE_ACCOUNT`.
+After pushing the new code to GitHub, Vercel deploys it by itself (check **Deployments** shows *Ready*).
+
+Check it is live: open `https://<your-domain>/api/send-push` in a browser -> `{"error":"Use POST"}`.
+
+Who may push what: the admin anything; everyone else only notifications about a booking they belong to,
+sent to the other person on that booking (same rule as `firestore.rules`).

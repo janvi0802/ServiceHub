@@ -75,6 +75,15 @@ module.exports = async (req, res) => {
       isRead: false,
       createdAt: Date.now(),
     });
+    // Also as a push to their phone, if it has one registered (failure here is not important)
+    const pushToken = target.get("fcmToken");
+    if (pushToken) {
+      await fb.messaging().send({
+        token: pushToken,
+        notification: { title: "Password changed", body: "Your password was changed by the ServiceHub admin." },
+        android: { priority: "high", notification: { channelId: "bookings" } },
+      }).catch(() => {});
+    }
 
     return res.status(200).json({ ok: true });
   } catch (e) {

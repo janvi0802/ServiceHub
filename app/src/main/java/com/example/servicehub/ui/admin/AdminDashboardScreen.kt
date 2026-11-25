@@ -1,5 +1,6 @@
 package com.example.servicehub.ui.admin
 
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -71,7 +72,8 @@ fun AdminDashboardScreen(
     onOpenPendingProviders: () -> Unit,
     onOpenAllProviders: () -> Unit,
     onOpenUsers: () -> Unit,
-    onOpenBookings: () -> Unit,
+    /** Opens All bookings; the text is a filter to apply (null = show all). */
+    onOpenBookings: (filter: String?) -> Unit,
     onOpenComplaints: () -> Unit,
     onLoggedOut: () -> Unit,
     viewModel: AdminDashboardViewModel = viewModel(),
@@ -79,13 +81,27 @@ fun AdminDashboardScreen(
     val stats by viewModel.stats.collectAsState()
     val openComplaints by viewModel.openComplaints.collectAsState()
     val sample by viewModel.sampleState.collectAsState()
+    var confirmLogout by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+
+    if (confirmLogout) {
+        com.example.servicehub.ui.components.ConfirmDialog(
+            title = "Log out?",
+            message = "You will need your email and password to log in again.",
+            confirmText = "Log out",
+            onConfirm = {
+                confirmLogout = false
+                viewModel.logout()
+                onLoggedOut()
+            },
+            onDismiss = { confirmLogout = false },
+        )
+    }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Dashboard", subtitle = "ServiceHub admin · ${DateUtils.pretty(DateUtils.today())}") {
-            IconButton(onClick = {
-                viewModel.logout()
-                onLoggedOut()
-            }) { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Log out") }
+            IconButton(onClick = { confirmLogout = true }) {
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Log out")
+            }
         }
 
         val s = stats
@@ -113,11 +129,13 @@ fun AdminDashboardScreen(
                 }
                 if (s.openRevisits > 0) {
                     ListRow(Icons.Filled.Replay, "${s.openRevisits} job redo request(s) waiting",
-                        "7-day guarantee: providers must come back", StatusRequested, onClick = onOpenBookings)
+                        "7-day guarantee: providers must come back", StatusRequested,
+                        onClick = { onOpenBookings(com.example.servicehub.ui.admin.AdminBookingsFilter.REDO) })
                 }
                 if (s.expiredRequests > 0) {
                     ListRow(Icons.Filled.AssignmentLate, "${s.expiredRequests} expired request(s)",
-                        "Providers did not answer in time", StatusRequested, onClick = onOpenBookings)
+                        "Providers did not answer in time", StatusRequested,
+                        onClick = { onOpenBookings(com.example.servicehub.ui.admin.AdminBookingsFilter.EXPIRED) })
                 }
             }
 
@@ -127,8 +145,8 @@ fun AdminDashboardScreen(
                 StatTile("Providers", "${s.approvedProviders}", Icons.Filled.Engineering, BrandOrange, Modifier.weight(1f), onOpenAllProviders)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatTile("Bookings", "${s.totalBookings}", Icons.Filled.EventNote, StatusAccepted, Modifier.weight(1f), onOpenBookings)
-                StatTile("Completed value", rupees(s.completedValue), Icons.Filled.CurrencyRupee, StatusCompleted, Modifier.weight(1f), onOpenBookings)
+                StatTile("Bookings", "${s.totalBookings}", Icons.Filled.EventNote, StatusAccepted, Modifier.weight(1f), { onOpenBookings(null) })
+                StatTile("Completed value", rupees(s.completedValue), Icons.Filled.CurrencyRupee, StatusCompleted, Modifier.weight(1f), { onOpenBookings(null) })
             }
             // Money split: what ServiceHub earns vs what providers earn
             AppCard {
@@ -152,7 +170,7 @@ fun AdminDashboardScreen(
                 Caption("${s.bookingsPerDay.sumOf { it.second }} new bookings in the last 7 days")
                 MiniBarChart(s.bookingsPerDay, BrandBlue)
             }
-            AppCard(onClick = onOpenBookings) {
+            AppCard(onClick = { onOpenBookings(null) }) {
                 CardTitle("Bookings by status")
                 Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     BookingStatus.entries.forEach { status ->
@@ -186,7 +204,7 @@ fun AdminDashboardScreen(
                 }
             }
             if (s.recent.isNotEmpty()) {
-                AppCard(onClick = onOpenBookings) {
+                AppCard(onClick = { onOpenBookings(null) }) {
                     CardTitle("Recent activity")
                     s.recent.forEachIndexed { index, b ->
                         if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

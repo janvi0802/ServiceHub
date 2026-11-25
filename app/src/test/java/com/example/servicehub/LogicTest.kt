@@ -157,8 +157,7 @@ class LogicTest {
         Booking(id = "a1", status = "ACCEPTED", date = today, totalAmount = 198),
         Booking(id = "a2", status = "ACCEPTED", date = "2099-01-01"),
         Booking(id = "p1", status = "IN_PROGRESS", date = today),
-        Booking(id = "c1", status = "COMPLETED", completedAt = System.currentTimeMillis(), totalAmount = 198),
-        Booking(id = "c2", status = "COMPLETED", completedAt = 1L, totalAmount = 500),   // long ago
+        Booking(id = "c1", status = "COMPLETED", completedAt = System.currentTimeMillis(), totalAmount = 198, paymentStatus = "PAID"),        Booking(id = "c2", status = "COMPLETED", completedAt = 1L, totalAmount = 500),   // long ago
         Booking(id = "x1", status = "CANCELLED"),
         Booking(id = "j1", status = "REJECTED"),
     )
@@ -172,8 +171,58 @@ class LogicTest {
     }
 
     @Test
-    fun providerEarnings_todayCountsOnlyJobsCompletedToday() {
-        assertEquals(198, ProviderJobsViewModel.todaysEarnings(jobs))
+    fun coupon_discountRules() {
+        val flat = com.example.servicehub.data.model.Coupon(code = "FIRST50", type = "FLAT", value = 50, minOrder = 199)
+        assertEquals(50, com.example.servicehub.data.model.couponDiscount(flat, 348).getOrNull())
+        assertEquals(null, com.example.servicehub.data.model.couponDiscount(flat, 150).getOrNull())          // below minimum
+        val pct = com.example.servicehub.data.model.Coupon(code = "TEN", type = "PERCENT", value = 10, maxDiscount = 100)
+        assertEquals(34, com.example.servicehub.data.model.couponDiscount(pct, 348).getOrNull())
+        assertEquals(100, com.example.servicehub.data.model.couponDiscount(pct, 2048).getOrNull())          // capped
+        assertEquals(null, com.example.servicehub.data.model.couponDiscount(flat.copy(isActive = false), 348).getOrNull())
+        // Provider keeps their full share: 348 - 50 coupon = 298 paid, provider still gets 348 - 49
+        val b = Booking(totalAmount = 298, visitFee = 49, discount = 50)
+        assertEquals(299, b.providerEarning)
+    }
+
+    @Test
+    fun slotHold_bookedOnHoldOrFreeAfterOneHour() {
+        val now = 1_000_000_000L
+        val hold = com.example.servicehub.data.model.SlotInfo(heldUntil = now + 60_000)
+        assertEquals(com.example.servicehub.data.model.SlotState.ON_HOLD, com.example.servicehub.data.model.slotStateAt(hold, now))
+        assertEquals(null, com.example.servicehub.data.model.slotStateAt(hold, now + 120_000))          // hour over: free
+        val booked = hold.copy(accepted = true)
+        assertEquals(com.example.servicehub.data.model.SlotState.BOOKED, com.example.servicehub.data.model.slotStateAt(booked, now + 999_999))
+        val old = com.example.servicehub.data.model.SlotInfo()                                            // old document: no heldUntil
+        assertEquals(com.example.servicehub.data.model.SlotState.ON_HOLD, com.example.servicehub.data.model.slotStateAt(old, now))
+    }
+
+    @Test
+    fun providerLists_sortMorningBeforeEvening() {
+        val day = "2026-12-01"
+        val list = listOf(
+            Booking(id = "e", status = "ACCEPTED", date = day, timeSlot = com.example.servicehub.data.FixedData.timeSlots[2]),
+            Booking(id = "m", status = "ACCEPTED", date = day, timeSlot = com.example.servicehub.data.FixedData.timeSlots[0]),
+            Booking(id = "a", status = "ACCEPTED", date = day, timeSlot = com.example.servicehub.data.FixedData.timeSlots[1]),
+        )
+        assertEquals(listOf("m", "a", "e"), ProviderJobsViewModel.upcoming(list).map { it.id })
+    }
+
+    @Test
+    fun nextStep_tellsEachSideWhatToDo() {
+        val unpaidUpi = Booking(status = "COMPLETED", paymentMode = "UPI", totalAmount = 348)
+        assertEquals("Pay ₹348 with UPI: tap Pay now below.", com.example.servicehub.ui.booking.customerNextStep(unpaidUpi))
+        val unpaidCash = Booking(status = "COMPLETED", paymentMode = "Cash", totalAmount = 198)
+        assertEquals("Collect ₹198 in cash and tap Cash collected.", com.example.servicehub.ui.booking.providerNextStep(unpaidCash))
+        val paidRated = Booking(status = "COMPLETED", paymentStatus = "PAID", isRated = true)
+        assertEquals(null, com.example.servicehub.ui.booking.customerNextStep(paidRated))
+    }
+
+    @Test
+    fun providerEarnings_todayCountsOnlyPaidJobsCompletedToday() {
+        val withUnpaid = jobs + Booking(id = "u1", status = "COMPLETED", completedAt = System.currentTimeMillis(), totalAmount = 300)
+        assertEquals(198, ProviderJobsViewModel.todaysEarnings(withUnpaid))      // u1 is not paid yet
+        assertEquals(800, ProviderJobsViewModel.pendingPayments(withUnpaid))     // u1 300 + c2 500 (old, unpaid)
+        assertEquals(198, ProviderJobsViewModel.paidEarnings(withUnpaid))
     }
 
     // ------------------------------------------------ Phase 10: rating average
@@ -432,9 +481,10 @@ class LogicTest {
         val now = System.currentTimeMillis()
         val oneDay = 24L * 60 * 60 * 1000
         val jobs = listOf(
-            Booking(status = "COMPLETED", completedAt = now, totalAmount = 198),
-            Booking(status = "COMPLETED", completedAt = now, totalAmount = 100),
-            Booking(status = "COMPLETED", completedAt = now - oneDay, totalAmount = 50),
+            Booking(status = "COMPLETED", completedAt = now, totalAmount = 198, paymentStatus = "PAID"),
+            Booking(status = "COMPLETED", completedAt = now, totalAmount = 100, paymentStatus = "PAID"),
+            Booking(status = "COMPLETED", completedAt = now - oneDay, totalAmount = 50, paymentStatus = "PAID"),
+            Booking(status = "COMPLETED", completedAt = now, totalAmount = 700),                 // not paid: not counted
             Booking(status = "COMPLETED", completedAt = now - 10 * oneDay, totalAmount = 999),   // too old
             Booking(status = "CANCELLED", completedAt = now, totalAmount = 500),                // not earned
         )

@@ -159,3 +159,59 @@ reminder, "from ₹" prices, search, receipt text, weekdays and days off, admin 
 | 115 | Customer → Pay now → UPI `failure@razorpay` (or close) | Message shown, payment stays pending |
 | 116 | Admin → Users → a real customer → Change password → new password twice | Success message; user is signed out and gets a notification; new password logs in |
 | 117 | Change password with mismatching boxes / under 6 characters | Change button disabled, error text shown |
+
+## New cases (payment step, redo PIN, easier navigation)
+
+| TC | Steps | Expected |
+|---|---|---|
+| 118 | Provider completes a **Cash** job | Job screen: "Collect ₹X in cash"; customer sees "Please pay ₹X in cash" |
+| 119 | Provider taps **Cash collected** → Yes | Booking PAID; customer gets "Cash payment confirmed"; provider Today earnings go up |
+| 120 | Provider completes a **UPI** job, customer pays (`success@razorpay`) | Provider screen changes by itself to "UPI payment received" with Payment ID, plus notification |
+| 121 | UPI job, customer pays cash instead | Provider taps **Customer paid cash instead** → PAID (Cash) |
+| 122 | Customer asks for a redo | Customer sees a **Redo PIN**; provider sees a PIN box under the complaint |
+| 123 | Provider enters a wrong redo PIN | "Wrong redo PIN", stays requested; correct PIN → "Job redone" |
+| 124 | Home → **Book a service** → Category → Service → Choose professional | Price preview shown; provider list opens filtered to your area |
+| 125 | Unpaid finished booking | Customer Home shows "Payment due"; booking stays in **Active** until paid |
+| 126 | Provider with an unpaid job | Home shows "₹X to collect"; Requests tab lists **Payments to collect**; tab badge counts it |
+| 127 | Provider has Morning and Evening jobs on the same day | Morning is listed first |
+| 128 | Admin: a provider registers / a complaint is sent | Red number on **Approvals** / **Dashboard** tab |
+| 129 | Admin dashboard → "job redo requests" / "expired" rows | All bookings opens already filtered (Redo / Expired); "Unpaid" filter also available |
+| 130 | Admin taps logout icon | "Log out?" confirmation first |
+| 131 | Booking / job screen in each status | A "NEXT STEP" box says exactly what to do now |
+
+## New cases (clean Home screens, 1-hour rule, payment switch, admin detail)
+
+| TC | Steps | Expected |
+|---|---|---|
+| 132 | Customer A requests a slot; customer B opens the same provider/date | B sees that slot as **"· On hold"** with a short explanation |
+| 133 | Provider accepts A's request; B looks again | Slot shows **"· Booked"** |
+| 134 | Provider does not answer for over 1 hour; B looks again | Slot is free again; B can book it |
+| 135 | A opens the app after that hour | Notification "No answer from …"; booking shows **Other provider / Change time** |
+| 136 | Provider accepts A's old request after B took the slot | Refused: "slot was taken … choose a new time" |
+| 137 | Customer: booking with Cash → "switch to UPI" (and back) | Payment method changes; provider gets a notification and sees it live |
+| 138 | Completed Cash booking | Customer can still **Pay now** by UPI; provider can still tap **Cash collected**; whichever is first wins |
+| 139 | Review booking page | One summary card (what / when / where) + Price card with Cash / UPI choice |
+| 140 | Customer Home | Sections: Needs your attention, Your next booking (PIN box), Book a service, Categories, Book again, Popular services |
+| 141 | Provider Home | Sections: Needs your attention, Next job, Today's jobs, Earnings (3 equal tiles), Availability (days off in a popup), Reviews |
+| 142 | Admin → Bookings → tap a booking | Read-only detail with Call customer / Call provider, reasons and timeline |
+
+## New cases (coupons)
+
+| TC | Steps | Expected |
+|---|---|---|
+| 143 | Admin → Services → **Coupons** → + Add `FIRST50`, ₹ off, 50, min 199 | Coupon listed with an on/off switch |
+| 144 | Customer books a ₹299 service → Review → coupon `first50` → Apply | "FIRST50 applied: ₹50 off"; total 299 + 49 − 50 = ₹298 |
+| 145 | Coupon on a bill under the minimum, or a wrong code | Clear error message, no discount |
+| 146 | Admin turns the coupon off, customer confirms a booking that had it applied | Booking refused with "no longer active" |
+| 147 | Booking with a coupon: detail, receipt, provider Complete popup | "Coupon FIRST50 − ₹50" line shown; provider's earning still bill − ₹49 + discount |
+
+## New cases (chat, push notifications)
+
+| TC | Steps | Expected |
+|---|---|---|
+| 148 | Customer opens an active booking → **Chat** → sends "Ring gate 2" | Message on the right in blue; provider gets "New message from …" |
+| 149 | Provider opens the job → **Chat with …** → replies | Customer sees it live on the left |
+| 150 | Completed booking older than 7 days, or a cancelled one | No Chat button; old chat shows "Chat is closed" |
+| 151 | First login on Android 13+ | "Allow notifications?" asked once |
+| 152 | Close the app on phone B; on phone A accept / send a message | Phone B shows a push in the notification bar; tapping opens the app |
+| 153 | Log in to a second account on the same phone | Pushes for the first account no longer arrive on this phone |

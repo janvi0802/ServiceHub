@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.automirrored.filled.Chat
 import com.example.servicehub.ui.components.openMaps
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -39,6 +40,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.ExtraItem
 import com.example.servicehub.data.model.RevisitStatus
+import com.example.servicehub.data.model.PaymentStatus
+import androidx.compose.material.icons.filled.Schedule
 import com.example.servicehub.ui.components.Caption
 import com.example.servicehub.ui.components.InfoBanner
 import com.example.servicehub.ui.components.InfoRow
@@ -76,6 +79,7 @@ import com.example.servicehub.ui.components.rupees
 @Composable
 fun JobDetailScreen(
     onBack: () -> Unit,
+    onOpenChat: (String) -> Unit,
     onReceipt: (String) -> Unit,
     viewModel: BookingDetailViewModel = viewModel(),
 ) {
@@ -90,6 +94,8 @@ fun JobDetailScreen(
     var showStart by rememberSaveable { mutableStateOf(false) }
     var showCancel by rememberSaveable { mutableStateOf(false) }
     var pin by rememberSaveable { mutableStateOf("") }
+    var redoPin by rememberSaveable { mutableStateOf("") }
+    var showCash by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Job details", onBack)
@@ -105,6 +111,7 @@ fun JobDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusSteps(status)
+            com.example.servicehub.ui.booking.NextStepCard(com.example.servicehub.ui.booking.providerNextStep(booking))
             BookingInfoCard(booking, "Customer", booking.customerName)
             TimelineCard(booking)
 
@@ -116,7 +123,7 @@ fun JobDetailScreen(
                     }
                     OutlinedButton(onClick = { openMaps(context, booking.address) }, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Filled.Map, contentDescription = null)
-                        Text("  Open in Maps")
+                        Text("  Maps")
                     }
                 }
                 // Booked for someone else (e.g. the customer's parents): call the person at the address
@@ -125,6 +132,14 @@ fun JobDetailScreen(
                         Icon(Icons.Filled.Call, contentDescription = null)
                         Text("  Call ${booking.contactName} (at the address)")
                     }
+                }
+            }
+
+            // Chat with the customer (open until 7 days after the job)
+            if (com.example.servicehub.data.repository.canChatAt(booking, System.currentTimeMillis())) {
+                OutlinedButton(onClick = { onOpenChat(booking.id) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                    Text("  Chat with ${booking.customerName}")
                 }
             }
 
@@ -199,19 +214,50 @@ fun JobDetailScreen(
                     onClick = { viewModel.clearMessage(); showComplete = true },
                     enabled = !isBusy,
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                ) { Text("Complete job • collect ${rupees(booking.totalAmount)}") }
+                ) { Text("Complete job") }
 
                 status == BookingStatus.COMPLETED -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Payment step (after completing)
+                    when {
+                        booking.paymentStatus == PaymentStatus.PAID -> InfoBanner(
+                            Icons.Filled.TaskAlt,
+                            if (booking.paymentId.isNotEmpty()) "UPI payment received: ${rupees(booking.totalAmount)}. Payment ID: ${booking.paymentId}"
+                            else "Cash collected: ${rupees(booking.totalAmount)}.",
+                            StatusCompleted,
+                        )
+                        else -> {
+                            InfoBanner(
+                                Icons.Filled.Schedule,
+                                if (booking.paymentMode == "UPI") "Waiting for the customer's UPI payment of ${rupees(booking.totalAmount)}. It will show here automatically."
+                                else "Collect ${rupees(booking.totalAmount)} in cash, then tap the button below.",
+                                StatusRequested,
+                            )
+                            Button(
+                                onClick = { viewModel.clearMessage(); showCash = true },
+                                enabled = !isBusy,
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                            ) {
+                                Text(if (booking.paymentMode == "UPI") "Customer paid cash instead" else "Cash collected ${rupees(booking.totalAmount)}")
+                            }
+                        }
+                    }
                     // 7-day guarantee: the customer asked for a free revisit
                     if (booking.revisitStatus == RevisitStatus.REQUESTED) {
                         InfoBanner(
                             Icons.Filled.Replay,
-                            "Complaint – customer asked you to redo this job free: \"${booking.revisitReason}\". Call the customer and fix it.",
+                            "Complaint – customer asked you to redo this job free: \"${booking.revisitReason}\". " +
+                                "Call the customer, fix it, then ask for their redo PIN.",
                             StatusRequested,
                         )
+                        TextInput(
+                            value = redoPin,
+                            onValueChange = { redoPin = it.filter(Char::isDigit).take(4) },
+                            label = "Customer's redo PIN",
+                            keyboardType = KeyboardType.NumberPassword,
+                        )
                         Button(
-                            onClick = viewModel::markRevisitDone,
-                            enabled = !isBusy,
+                            onClick = { viewModel.markRevisitDone(redoPin) { redoPin = "" } },
+                            enabled = !isBusy && (redoPin.length == 4 || booking.revisitPin.isEmpty()),
                             modifier = Modifier.fillMaxWidth().height(50.dp),
                         ) { Text("Mark as redone") }
                     } else if (booking.revisitStatus == RevisitStatus.DONE) {
@@ -278,24 +324,34 @@ fun JobDetailScreen(
         if (showComplete) {
             CompleteJobDialog(
                 booking = booking,
-                onConfirm = { mode, extras, paidNow ->
+                onConfirm = { extras ->
                     showComplete = false
-                    viewModel.complete(mode, extras, paidNow) {}
+                    viewModel.complete(extras) {}
                 },
                 onDismiss = { showComplete = false },
+            )
+        }
+        if (showCash) {
+            ConfirmDialog(
+                title = "Cash collected?",
+                message = "Confirm only after you have received ${rupees(booking.totalAmount)} in cash from ${booking.customerName}.",
+                confirmText = "Yes, received",
+                onConfirm = {
+                    showCash = false
+                    viewModel.markCashCollected()
+                },
+                onDismiss = { showCash = false },
             )
         }
     }
 }
 
 /**
- * Before completing: optional extra items (spare parts / extra work), payment mode,
- * and "Payment received". The amount to collect updates as items are added.
+ * Before completing: optional extra items (spare parts / extra work).
+ * The amount to collect updates as items are added. Payment is the next step on the job screen.
  */
 @Composable
-private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraItem>, Boolean) -> Unit, onDismiss: () -> Unit) {
-    var mode by remember { mutableStateOf(booking.paymentMode.ifBlank { FixedData.paymentModes.first() }) }
-    var received by remember { mutableStateOf(false) }
+private fun CompleteJobDialog(booking: Booking, onConfirm: (List<ExtraItem>) -> Unit, onDismiss: () -> Unit) {
     // Each row: name + amount typed as text (turned into numbers when saving)
     val names = remember { mutableStateListOf<String>() }
     val amounts = remember { mutableStateListOf<String>() }
@@ -311,6 +367,7 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraIt
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InfoRow("Service + visit fee", rupees(booking.servicePrice + booking.visitFee))
+                if (booking.discount > 0) InfoRow("Coupon ${booking.couponCode}", "− ${rupees(booking.discount)}")
                 Text("Extra parts or work (optional)", style = MaterialTheme.typography.titleSmall)
                 names.indices.forEach { i ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -330,23 +387,13 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraIt
                 if (!rowsValid) Caption("Each item needs a name and an amount from ₹1 to ₹50,000.", color = MaterialTheme.colorScheme.error)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
-                    "Amount to collect: ${rupees(booking.servicePrice + booking.visitFee + extraSum)}",
+                    "Amount to collect: ${rupees(booking.servicePrice + booking.visitFee + extraSum - booking.discount)}",
                     fontWeight = FontWeight.Bold,
                 )
-                Text("Paid by")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FixedData.paymentModes.forEach { m ->
-                        FilterChip(selected = m == mode, onClick = { mode = m }, label = { Text(m) })
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = received, onCheckedChange = { received = it })
-                    Text(if (mode == "UPI") "Already received on my UPI" else "Payment received")
-                }
-                // UPI without the tick: the customer pays in the app (Razorpay, test mode)
-                if (mode == "UPI" && !received) {
-                    Caption("Not ticked: the customer will see \"Pay now\" and pay with UPI in the app.")
-                }
+                Caption(
+                    if (booking.paymentMode == "UPI") "Next: the customer pays this with UPI in the app; you will see it here."
+                    else "Next: collect this in cash and tap \"Cash collected\"."
+                )
             }
         },
         confirmButton = {
@@ -355,10 +402,9 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraIt
                     val extras = names.indices
                         .filter { names[it].isNotBlank() }
                         .map { ExtraItem(names[it].trim(), amounts[it].toIntOrNull() ?: 0) }
-                    onConfirm(mode, extras, received)
+                    onConfirm(extras)
                 },
-                // Cash must be received first; UPI can be paid later by the customer in the app
-                enabled = rowsValid && (received || mode == "UPI"),
+                enabled = rowsValid,
             ) { Text("Complete") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },

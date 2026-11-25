@@ -1,5 +1,9 @@
 package com.example.servicehub.ui.common
 
+import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -127,6 +131,10 @@ fun NotificationsScreen(
 
 /** Which icon and colour a notification gets, chosen from its title. */
 fun notificationStyle(title: String): Pair<ImageVector, Color> = when {
+    title.contains("message", true) -> Icons.AutoMirrored.Filled.Chat to StatusAccepted
+    title.contains("payment", true) -> Icons.Filled.CurrencyRupee to StatusCompleted
+    title.contains("password", true) -> Icons.Filled.Lock to StatusRequested
+    title.contains("on the way", true) -> Icons.Filled.DirectionsRun to StatusInProgress
     title.contains("complaint", true) -> Icons.Filled.Cancel to StatusRequested
     title.contains("redone", true) -> Icons.Filled.TaskAlt to StatusCompleted
     title.contains("request", true) -> Icons.Filled.NotificationsActive to StatusRequested

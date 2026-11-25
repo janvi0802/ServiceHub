@@ -57,6 +57,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.example.servicehub.ui.theme.StatusRequested
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.automirrored.filled.Notes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -89,6 +92,12 @@ data class BookingFormUiState(
     val isSaving: Boolean = false,
     val error: String? = null,
     val createdBookingId: String? = null,   // set after saving -> go to success screen
+    /** Coupon: what the customer typed, the applied code ("" = none), its discount and any message. */
+    val couponInput: String = "",
+    val couponCode: String = "",
+    val discount: Int = 0,
+    val couponMessage: String? = null,
+    val couponChecking: Boolean = false,
 )
 
 class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
@@ -103,12 +112,12 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
      * flatMapLatest: whenever the date changes, stop listening to the old date and listen to the new one.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val busySlots: StateFlow<Set<String>> = _uiState
+    val busySlots: StateFlow<Map<String, com.example.servicehub.data.model.SlotState>> = _uiState
         .map { it.date }
         .distinctUntilChanged()
         .flatMapLatest { date -> BookingRepository.busySlots(providerId, date) }
-        .catch { emit(emptySet()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     init { load() }
 
@@ -151,6 +160,26 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun onContactNameChange(v: String) = _uiState.update { it.copy(contactName = v.take(40), error = null) }
     fun onContactPhoneChange(v: String) = _uiState.update { it.copy(contactPhone = v.filter(Char::isDigit).take(10), error = null) }
 
+    fun onCouponInput(v: String) = _uiState.update { it.copy(couponInput = v.take(15), couponMessage = null) }
+
+    /** "Apply": checks the code against this bill and shows the discount (or why not). */
+    fun applyCoupon() {
+        val s = _uiState.value
+        val service = s.service ?: return
+        _uiState.update { it.copy(couponChecking = true, couponMessage = null) }
+        viewModelScope.launch {
+            try {
+                val (coupon, off) = com.example.servicehub.data.repository.CouponRepository
+                    .check(s.couponInput, service.price + FixedData.VISIT_FEE)
+                _uiState.update { it.copy(couponCode = coupon.code, discount = off, couponChecking = false, couponMessage = "${coupon.code} applied: ₹$off off") }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(couponCode = "", discount = 0, couponChecking = false, couponMessage = BookingRepository.friendlyError(e)) }
+            }
+        }
+    }
+
+    fun removeCoupon() = _uiState.update { it.copy(couponCode = "", discount = 0, couponInput = "", couponMessage = null) }
+
     /** Back from the summary to the form (nothing is saved). */
     fun backToEdit() = _uiState.update { it.copy(reviewing = false, error = null) }
 
@@ -159,7 +188,7 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         isOffOn(provider, s.date) -> "${provider.name} is off on this day. Please choose another date."
         s.timeSlot.isBlank() -> "Please choose a time slot."
         isSlotDisabled(s.date, s.timeSlot) -> "This slot is already over today. Please choose another."
-        s.timeSlot in busySlots.value -> "This slot was just booked by someone else. Please choose another."
+        s.timeSlot in busySlots.value.keys -> "This slot was just booked by someone else. Please choose another."
         s.address.isBlank() -> "Please enter the address."
         s.bookingForOther && s.contactName.isBlank() -> "Please enter the name of the person at the address."
         s.bookingForOther && s.contactPhone.length != 10 -> "Their phone number must be 10 digits."
@@ -201,6 +230,7 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                     address = s.address.trim(), note = s.note.trim(), paymentMode = s.paymentMode,
                     contactName = if (s.bookingForOther) s.contactName.trim() else "",
                     contactPhone = if (s.bookingForOther) s.contactPhone else "",
+                    couponCode = s.couponCode,
                 )
                 _uiState.update { it.copy(isSaving = false, createdBookingId = id) }
             } catch (e: Exception) {
@@ -242,7 +272,11 @@ fun BookingFormScreen(
         }
 
         if (state.reviewing) {
-            ReviewSummary(state, service, provider, onEdit = viewModel::backToEdit, modifier = Modifier.weight(1f))
+            ReviewSummary(
+                state, service, provider, onEdit = viewModel::backToEdit, onPaymentMode = viewModel::onPaymentModeChange,
+                onCouponInput = viewModel::onCouponInput, onApplyCoupon = viewModel::applyCoupon, onRemoveCoupon = viewModel::removeCoupon,
+                modifier = Modifier.weight(1f),
+            )
         } else Column(
             Modifier
                 .weight(1f)
@@ -283,14 +317,17 @@ fun BookingFormScreen(
             SectionTitle("Time slot")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FixedData.timeSlots.forEach { slot ->
-                    val taken = slot in busy
+                    val taken = busy[slot]   // Booked, On hold, or null = free
                     FilterChip(
-                        selected = slot == state.timeSlot && !taken,
+                        selected = slot == state.timeSlot && taken == null,
                         onClick = { viewModel.onSlotChange(slot) },
-                        enabled = !taken && !viewModel.isSlotDisabled(state.date, slot),
-                        label = { Text(if (taken) "$slot · Booked" else slot) },
+                        enabled = taken == null && !viewModel.isSlotDisabled(state.date, slot),
+                        label = { Text(if (taken != null) "$slot · ${taken.label}" else slot) },
                     )
                 }
+            }
+            if (com.example.servicehub.data.model.SlotState.ON_HOLD in busy.values) {
+                Caption("On hold = another customer requested it. It opens again if ${provider.name} does not answer within 1 hour.")
             }
 
             SectionTitle("Address")
@@ -354,7 +391,7 @@ fun BookingFormScreen(
         // Fixed bottom bar: total on the left, the main action on the right
         BottomActionBar {
             Column(Modifier.weight(1f)) {
-                Text(rupees(service.price + FixedData.VISIT_FEE), style = MaterialTheme.typography.titleLarge)
+                Text(rupees(service.price + FixedData.VISIT_FEE - state.discount), style = MaterialTheme.typography.titleLarge)
                 Text("incl. ₹${FixedData.VISIT_FEE} visit fee · pay after service", style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -383,36 +420,59 @@ private fun ReviewSummary(
     service: Service,
     provider: Provider,
     onEdit: () -> Unit,
+    onPaymentMode: (String) -> Unit,
+    onCouponInput: (String) -> Unit,
+    onApplyCoupon: () -> Unit,
+    onRemoveCoupon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier.verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        ReviewSection("Service", onEdit) {
-            InfoRow("Service", service.name)
-            InfoRow("Professional", provider.name)
+        // 1. One summary card: what, when, where (icon rows), with one "Change details" link
+        com.example.servicehub.ui.components.SectionLabel("Your booking")
+        AppCard {
+            SummaryLine(Icons.Filled.Build, service.name, "with ${provider.name}")
+            SummaryLine(Icons.Filled.EventBusy, DateUtils.pretty(state.date), state.timeSlot)
+            SummaryLine(
+                Icons.Filled.LocationOn, state.address.trim(),
+                if (state.bookingForOther) "Contact: ${state.contactName.trim()} · ${state.contactPhone}" else "Contact: you",
+            )
+            if (state.note.isNotBlank()) SummaryLine(Icons.AutoMirrored.Filled.Notes, "Problem", state.note.trim())
+            TextButton(onClick = onEdit, modifier = Modifier.align(Alignment.End)) { Text("Change details") }
         }
-        ReviewSection("When", onEdit) {
-            InfoRow("Date", DateUtils.pretty(state.date))
-            InfoRow("Slot", state.timeSlot)
-        }
-        ReviewSection("Where", onEdit) {
-            InfoRow("Address", state.address.trim())
-            if (state.bookingForOther) {
-                InfoRow("Contact person", state.contactName.trim())
-                InfoRow("Their phone", state.contactPhone)
-            } else {
-                InfoRow("Contact person", "You")
-            }
-            if (state.note.isNotBlank()) InfoRow("Problem", state.note.trim())
-        }
-        ReviewSection("Payment", onEdit) {
+
+        // 2. Price card, with the payment method selectable right here
+        com.example.servicehub.ui.components.SectionLabel("Price details")
+        AppCard {
             InfoRow(service.name, rupees(service.price))
             InfoRow("Visit fee", rupees(FixedData.VISIT_FEE))
+            if (state.discount > 0) InfoRow("Coupon ${state.couponCode}", "− ${rupees(state.discount)}")
             HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outlineVariant)
-            InfoRow("Total", rupees(service.price + FixedData.VISIT_FEE), bold = true)
-            InfoRow("Pay by", "${state.paymentMode}, after the service")
+            InfoRow("Total", rupees(service.price + FixedData.VISIT_FEE - state.discount), bold = true)
+
+            // Coupon box: type a code and tap Apply (or Remove once applied)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
+                if (state.couponCode.isEmpty()) {
+                    TextInput(state.couponInput, onCouponInput, "Coupon code (optional)", modifier = Modifier.weight(1f))
+                    TextButton(onClick = onApplyCoupon, enabled = state.couponInput.isNotBlank() && !state.couponChecking) {
+                        Text(if (state.couponChecking) "Checking..." else "Apply")
+                    }
+                } else {
+                    Text("Coupon ${state.couponCode} applied", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onRemoveCoupon) { Text("Remove") }
+                }
+            }
+            state.couponMessage?.let {
+                Caption(it, color = if (state.discount > 0) com.example.servicehub.ui.theme.StatusCompleted else MaterialTheme.colorScheme.error)
+            }
+            Text("Pay after the service by", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                FixedData.paymentModes.forEach { mode ->
+                    FilterChip(selected = mode == state.paymentMode, onClick = { onPaymentMode(mode) }, label = { Text(mode) })
+                }
+            }
             Caption(FixedData.PRICE_NOTE, modifier = Modifier.padding(top = 6.dp))
         }
         Caption("Nothing is booked yet. Tap Confirm booking to send the request to ${provider.name}.")
@@ -420,14 +480,15 @@ private fun ReviewSummary(
     }
 }
 
+/** One row of the summary: a small icon, a main line, and a grey line under it. */
 @Composable
-private fun ReviewSection(title: String, onEdit: () -> Unit, content: @Composable () -> Unit) {
-    AppCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = onEdit) { Text("Edit") }
+private fun SummaryLine(icon: androidx.compose.ui.graphics.vector.ImageVector, main: String, sub: String) {
+    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
+        com.example.servicehub.ui.components.SoftIcon(icon, MaterialTheme.colorScheme.primary, size = 32.dp, iconSize = 18.dp)
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(main, style = MaterialTheme.typography.titleSmall)
+            if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        content()
     }
 }
 

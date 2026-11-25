@@ -62,7 +62,7 @@ data class DashboardStats(
             expiredRequests = bookings.count { it.isExpired },
             totalBookings = bookings.size,
             completedValue = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.totalAmount },
-            platformEarnings = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.visitFee },
+            platformEarnings = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.visitFee - it.discount },   // coupons are paid by ServiceHub
             providerEarnings = bookings.filter { it.bookingStatus == BookingStatus.COMPLETED }.sumOf { it.providerEarning },
             openRevisits = bookings.count { it.revisitStatus == RevisitStatus.REQUESTED },
             topProviders = topProviders(providers),

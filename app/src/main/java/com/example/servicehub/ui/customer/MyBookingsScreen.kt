@@ -77,8 +77,9 @@ fun MyBookingsScreen(
         ScreenHeader("My bookings", subtitle = "Track and manage your services")
         val all = bookings
         // Expired requests move to "Past" even though their status is still REQUESTED.
-        val active = all.orEmpty().filter { it.isOpen }
-        val past = all.orEmpty().filter { !it.isOpen }
+        // A finished job that is not paid yet also stays in "Active", so "Pay now" is easy to find.
+        val active = all.orEmpty().filter { it.isOpen || CustomerHomeViewModel.needsPayment(it) }
+        val past = all.orEmpty().filter { it !in active }
         PrimaryTabRow(selectedTabIndex = selectedTab, containerColor = MaterialTheme.colorScheme.surface) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Active (${active.size})") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Past (${past.size})") })

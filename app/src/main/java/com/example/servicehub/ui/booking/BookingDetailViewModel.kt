@@ -60,7 +60,7 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
     /** Live busy slots of this booking's provider on [date] (used by the reschedule popup). */
     fun busySlotsFor(providerId: String, date: String): Flow<Set<String>> =
-        BookingRepository.busySlots(providerId, date).catch { emit(emptySet()) }
+        BookingRepository.busySlots(providerId, date).map { it.keys }.catch { emit(emptySet()) }
 
     /** True while an action is being saved (buttons are disabled). */
     val isBusy = MutableStateFlow(false)
@@ -115,21 +115,34 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun cancelByProvider(reason: String) =
         run("Job cancelled. The customer has been told.") { BookingRepository.cancelByProvider(bookingId, reason) }
 
-    fun complete(paymentMode: String, extras: List<ExtraItem>, paidNow: Boolean, onDone: () -> Unit) =
-        run(if (paidNow) "Job completed. Payment recorded." else "Job completed. The customer will pay with UPI in the app.", onDone) {
-            BookingRepository.complete(bookingId, paymentMode, extras, paidNow)
+    fun complete(extras: List<ExtraItem>, onDone: () -> Unit) =
+        run("Job completed. Now collect the payment.", onDone) {
+            BookingRepository.complete(bookingId, extras)
         }
 
-    /** Razorpay said the payment worked: record it on the booking. */
-    fun markPaidOnline(paymentId: String) =
-        run("Payment successful. Thank you!") { BookingRepository.markPaidOnline(bookingId, paymentId) }
+    /** Provider: the customer paid cash. */
+    fun markCashCollected() =
+        run("Cash payment recorded. The customer has been told.") { BookingRepository.markCashCollected(bookingId) }
 
     /** Show a payment problem (cancelled / failed) under the buttons. */
     fun showMessage(text: String) { message.value = text }
 
+    /** Customer: switch Cash <-> UPI before paying. */
+    fun changePaymentMode(mode: String) =
+        run("Payment method changed to $mode. The professional has been told.") { BookingRepository.changePaymentMode(bookingId, mode) }
+
+    /** Customer opened a booking the provider has not answered for 1 hour: tell them once. */
+    fun notifyNoAnswerOnce(booking: Booking) {
+        if (!booking.isNoAnswer || booking.noAnswerNotified) return
+        viewModelScope.launch { runCatching { BookingRepository.notifyNoAnswer(booking) } }
+    }
+
     fun markOnTheWay() = run("Customer told you are on the way.") { BookingRepository.markOnTheWay(bookingId) }
 
-    fun markRevisitDone() = run("Marked as redone. The customer has been told.") { BookingRepository.markRevisitDone(bookingId) }
+    fun markRevisitDone(pin: String, onDone: () -> Unit) =
+        run("Redo PIN correct. Marked as redone; the customer has been told.", onDone) {
+            BookingRepository.markRevisitDone(bookingId, pin)
+        }
 
     // ---- customer: 7-day guarantee
     fun requestRevisit(reason: String) =

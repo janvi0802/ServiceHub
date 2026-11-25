@@ -70,6 +70,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    // Push notifications (Firebase Cloud Messaging, free; version comes from the Firebase BoM)
+    implementation(libs.firebase.messaging)
     // Razorpay checkout (UPI / cards) in TEST mode
     implementation(libs.razorpay.checkout)
     testImplementation(libs.junit)

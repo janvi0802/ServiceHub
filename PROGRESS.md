@@ -164,3 +164,42 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 - Setup needed in `local.properties` (never uploaded): `RAZORPAY_KEY_ID=rzp_test_...` and `ADMIN_API_URL=https://...`.
   Without them the buttons are shown disabled with a hint.
 - Test: Pay now → UPI ID `success@razorpay` (passes) / `failure@razorpay` (fails, stays pending).
+
+## Round: payment step, redo PIN, easier navigation (2026-11-25)
+
+- Payment is a separate step after Complete: Cash -> provider taps "Cash collected"; UPI -> customer Pay now, provider sees it automatically.
+- UPI payment is saved by the app itself (not the screen), so it cannot be lost if the screen closes.
+- Redo needs the customer's 4-digit Redo PIN (proof the provider came back).
+- Earnings: Today / Total count only money received; "to collect" banner and Requests section for unpaid jobs.
+- Home "Book a service" opens a 2-step form (category -> service -> professional).
+- "NEXT STEP" box on customer booking and provider job screens; Payment due card on customer Home.
+- Admin: badges on Approvals (pending providers) and Dashboard (open complaints), logout confirmation, dashboard rows open filtered bookings (Redo / Expired / Unpaid).
+- Fixed: jobs on the same day were sorted alphabetically (Evening before Morning).
+- Security rules tightened (each side changes only its own booking fields; earnings only go up; ratings 1-5; notifications only about your own bookings). **Publish firestore.rules again.**
+- Known gaps: tapping a booking in Admin -> All bookings does nothing (no admin booking detail screen).
+  The provider's app technically downloads the PINs with the booking (hidden on screen); real protection would need a server (future scope).
+
+## Round: clean Home screens, 1-hour rule, payment switch, admin detail (2026-11-25)
+
+- Customer and provider Home rebuilt in clear sections with one shared style (SectionLabel, ActionList rows, small SoftIcon). Trust strip removed.
+- Slots: "On hold" (requested) vs "Booked" (accepted). An unanswered request holds the slot for 1 hour, then others may take it.
+  Customer is told once ("No answer from …") when the app is open; push would need a paid server.
+- Payment method can be switched Cash <-> UPI until paid; after the job the customer can always Pay now and the provider can always mark cash.
+- Earnings use one rule: Today / This week = money kept from PAID jobs; To collect = what customers still owe.
+- Review booking page: one summary card + price card with Cash/UPI choice.
+- Admin: read-only booking detail (tap any booking in Bookings).
+- **Publish firestore.rules again** (slot hold/accept rules, new booking fields).
+
+## Round: coupons (2026-11-25)
+
+- Admin creates coupons (₹ off or % off, minimum bill, max discount, on/off). Customer applies a code on the review page; booking stores couponCode and discount.
+- The discount is ServiceHub's offer: provider share unchanged; platform earnings = visit fee − discount.
+- Rules: coupons readable by logged-in users, written only by admin; a booking may have a discount only with an active coupon. **Publish firestore.rules again.**
+- Next: booking chat, then push notifications.
+
+## Round: booking chat + push notifications (2026-11-25)
+
+- Chat: bookings/{id}/messages, only the booking's customer and provider (rules), open until 7 days after the job; each message also creates a notification.
+- Push: Firebase Cloud Messaging (free). Phone token saved on users/{uid}; each notification asks the Vercel server (api/send-push.js) to push it; the server checks the sender is on that booking. Needs ADMIN_API_URL and the pushed server code.
+- Limit: the 1-hour 'no answer' alert is still created when the customer's app is opened (a timed push would need a scheduled server).
+- **Publish firestore.rules again** (messages, fcmToken).

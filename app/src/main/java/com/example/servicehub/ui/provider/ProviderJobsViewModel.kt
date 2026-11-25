@@ -1,5 +1,6 @@
 package com.example.servicehub.ui.provider
 
+import com.example.servicehub.data.model.PaymentStatus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.servicehub.data.DateUtils
@@ -75,9 +76,21 @@ class ProviderJobsViewModel : ViewModel() {
     companion object {
         // Small pure functions that sort bookings into groups. "companion object" = no instance needed.
 
+        /**
+         * Sort key "2026-11-20 0": the date, then the slot's position in the day
+         * (0 = Morning, 1 = Afternoon, 2 = Evening). Sorting by the slot's NAME would put
+         * "Evening" before "Morning" (alphabetical order), which was a bug.
+         */
+        fun timeOrder(b: Booking) = "${b.date} ${com.example.servicehub.data.FixedData.timeSlots.indexOf(b.timeSlot)}"
+
         /** Requests still waiting for an answer (expired ones go to history). */
         fun newRequests(all: List<Booking>) =
-            all.filter { it.bookingStatus == BookingStatus.REQUESTED && !it.isExpired }.sortedBy { it.date + it.timeSlot }
+            all.filter { it.bookingStatus == BookingStatus.REQUESTED && !it.isExpired }.sortedBy(::timeOrder)
+
+        /** Job done, money not received yet: the provider must collect cash or wait for UPI. Oldest first. */
+        fun paymentsToCollect(all: List<Booking>) =
+            all.filter { it.bookingStatus == BookingStatus.COMPLETED && it.paymentStatus != PaymentStatus.PAID }
+                .sortedBy { it.completedAt }
 
         /** Completed jobs where the customer asked for a free revisit (7-day guarantee). */
         fun revisits(all: List<Booking>) =
@@ -86,7 +99,7 @@ class ProviderJobsViewModel : ViewModel() {
         /** Accepted or in progress, earliest date first. */
         fun upcoming(all: List<Booking>) =
             all.filter { it.bookingStatus == BookingStatus.ACCEPTED || it.bookingStatus == BookingStatus.IN_PROGRESS }
-                .sortedBy { it.date + it.timeSlot }
+                .sortedBy(::timeOrder)
 
         fun todaysJobs(all: List<Booking>) = upcoming(all).filter { it.date == DateUtils.today() }
 
@@ -97,19 +110,29 @@ class ProviderJobsViewModel : ViewModel() {
 
         /**
          * Earnings for each of the last 7 days (oldest first), e.g. [("Mon", 0), ... ("Sun", 198)].
-         * A job counts on the day it was completed.
+         * A PAID job counts on the day it was completed (same rule as Today).
          */
         fun earningsLast7Days(all: List<Booking>, now: Long = System.currentTimeMillis()): List<Pair<String, Int>> {
-            val completed = all.filter { it.bookingStatus == BookingStatus.COMPLETED && it.completedAt > 0 }
+            val completed = paidJobs(all).filter { it.completedAt > 0 }   // only money received
             return DateUtils.lastDays(7, now).map { day ->
                 val label = DateUtils.weekdayShortNames[(DateUtils.weekdayOf(day) - 1).coerceIn(0, 6)]
                 label to completed.filter { DateUtils.dateOf(it.completedAt) == day }.sumOf { it.providerEarning }
             }
         }
 
-        /** What the provider earned today (their share: total minus the platform's visit fee). */
-        fun todaysEarnings(all: List<Booking>) = all
-            .filter { it.bookingStatus == BookingStatus.COMPLETED && DateUtils.isToday(it.completedAt) }
+        /** Completed jobs whose money has really been received (cash collected or UPI paid). */
+        private fun paidJobs(all: List<Booking>) =
+            all.filter { it.bookingStatus == BookingStatus.COMPLETED && it.paymentStatus == PaymentStatus.PAID }
+
+        /** What the provider received today (their share: total minus the platform's visit fee). */
+        fun todaysEarnings(all: List<Booking>) = paidJobs(all)
+            .filter { DateUtils.isToday(it.completedAt) }
             .sumOf { it.providerEarning }
+
+        /** Everything received so far (only paid jobs). */
+        fun paidEarnings(all: List<Booking>) = paidJobs(all).sumOf { it.providerEarning }
+
+        /** Job done but money not received yet (cash not confirmed / UPI not paid). Full amount to collect. */
+        fun pendingPayments(all: List<Booking>) = paymentsToCollect(all).sumOf { it.totalAmount }
     }
 }

@@ -121,7 +121,76 @@ data class SlotInfo(
     val bookingId: String = "",
     val date: String = "",
     val timeSlot: String = "",
+    /**
+     * Until when a NOT-yet-accepted request holds the slot (request time + 1 hour).
+     * Older slot documents have no such field: they count as held for ever (safe default).
+     */
+    val heldUntil: Long = Long.MAX_VALUE,
+    /** true once the provider accepted: the slot is really "Booked". */
+    val accepted: Boolean = false,
 )
+
+/**
+ * coupons/{CODE}: a discount code the admin creates, e.g. FIRST50.
+ * The document id IS the code (in capitals), so finding a code is one simple read.
+ */
+data class Coupon(
+    val code: String = "",
+    /** "FLAT" = [value] rupees off, "PERCENT" = [value] % off (up to [maxDiscount]). */
+    val type: String = CouponType.FLAT,
+    val value: Int = 0,
+    /** The bill (service + visit fee) must be at least this much. */
+    val minOrder: Int = 0,
+    /** Upper limit for a PERCENT coupon (0 = no limit). */
+    val maxDiscount: Int = 0,
+    @get:PropertyName("isActive") @set:PropertyName("isActive")
+    var isActive: Boolean = true,
+    val createdAt: Long = 0L,
+)
+
+object CouponType {
+    const val FLAT = "FLAT"
+    const val PERCENT = "PERCENT"
+}
+
+/**
+ * How many rupees [coupon] takes off a bill of [amount], or a message saying why it cannot be used.
+ * Pure function (no Firebase), so it is unit-tested. The discount never makes the bill negative.
+ */
+fun couponDiscount(coupon: Coupon, amount: Int): Result<Int> = when {
+    !coupon.isActive -> Result.failure(IllegalStateException("This coupon is no longer active."))
+    amount < coupon.minOrder -> Result.failure(IllegalStateException("This coupon needs a bill of at least ₹${coupon.minOrder}."))
+    else -> {
+        val raw = if (coupon.type == CouponType.PERCENT) amount * coupon.value / 100 else coupon.value
+        val capped = if (coupon.type == CouponType.PERCENT && coupon.maxDiscount > 0) minOf(raw, coupon.maxDiscount) else raw
+        Result.success(capped.coerceIn(0, amount))
+    }
+}
+
+/** bookings/{bookingId}/messages/{id}: one chat message between the customer and the provider. */
+data class ChatMessage(
+    val id: String = "",
+    val senderId: String = "",
+    val senderName: String = "",
+    val text: String = "",
+    val createdAt: Long = 0L,
+)
+
+/** What another customer sees on a provider's slot. */
+enum class SlotState(val label: String) { BOOKED("Booked"), ON_HOLD("On hold") }
+
+/** How long a provider has to answer a request before the slot opens again for others. */
+const val ANSWER_WINDOW_MILLIS = 60L * 60 * 1000   // 1 hour
+
+/**
+ * Booked (accepted), On hold (request still within its hour), or null = free
+ * (an old unanswered hold no longer blocks anyone). Pure function, so it is unit-tested.
+ */
+fun slotStateAt(slot: SlotInfo, now: Long): SlotState? = when {
+    slot.accepted -> SlotState.BOOKED
+    now < slot.heldUntil -> SlotState.ON_HOLD
+    else -> null
+}
 
 /** Values for Complaint.status */
 object ComplaintStatus {
@@ -223,6 +292,15 @@ data class Booking(
     val revisitReason: String = "",
     val revisitRequestedAt: Long = 0L,
     val revisitDoneAt: Long = 0L,
+    /** 4-digit PIN the customer gives the provider at the redo visit (like startPin). */
+    val revisitPin: String = "",
+    /** When the provider was last asked to answer (booking made or rescheduled). */
+    val requestedAt: Long = 0L,
+    /** true once the customer was told "no answer in 1 hour" (so it is told only once). */
+    val noAnswerNotified: Boolean = false,
+    /** Coupon used (empty = none) and the rupees it took off. totalAmount is already reduced. */
+    val couponCode: String = "",
+    val discount: Int = 0,
 ) {
     /**
      * What the provider keeps: everything except the ₹49 visit fee,
@@ -230,7 +308,8 @@ data class Booking(
      */
     @get:Exclude
     val providerEarning: Int
-        get() = totalAmount - visitFee
+        // A coupon is ServiceHub's own offer, so it does not reduce the provider's share.
+        get() = totalAmount - visitFee + discount
 
     /** True while the customer can still ask for a free revisit (completed less than 7 days ago). */
     @get:Exclude
@@ -255,10 +334,22 @@ data class Booking(
     val isOverdue: Boolean
         get() = isAcceptedOverdue(this, DateUtils.today())
 
+    /** Still waiting and the provider has not answered within 1 hour of the request. */
+    @get:Exclude
+    val isNoAnswer: Boolean
+        get() = isNoAnswerAt(this, System.currentTimeMillis())
+
     /** Active and not expired: shown under "Active" and blocks actions like Accept. */
     @get:Exclude
     val isOpen: Boolean
         get() = bookingStatus.isActive && !isExpired
+}
+
+/** REQUESTED (not expired) and more than 1 hour since it was requested (or rescheduled). */
+fun isNoAnswerAt(booking: Booking, now: Long): Boolean {
+    val since = if (booking.requestedAt > 0) booking.requestedAt else booking.createdAt
+    return booking.bookingStatus == BookingStatus.REQUESTED && !booking.isExpired &&
+        since > 0 && now - since > ANSWER_WINDOW_MILLIS
 }
 
 /** Completed, no revisit asked yet, and finished less than [GUARANTEE_DAYS] days before [now]. */

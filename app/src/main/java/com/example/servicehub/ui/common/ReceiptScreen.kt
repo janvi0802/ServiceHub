@@ -100,6 +100,7 @@ fun ReceiptScreen(
                 InfoRow("Service price", rupees(b.servicePrice))
                 b.extraItems.forEach { InfoRow(it.name, rupees(it.amount)) }   // spare parts / extra work
                 InfoRow("Visit fee (ServiceHub)", rupees(b.visitFee))
+                if (b.discount > 0) InfoRow("Coupon ${b.couponCode}", "− ${rupees(b.discount)}")
                 HorizontalDivider(Modifier.padding(vertical = 6.dp))
                 InfoRow(if (b.paymentStatus == PaymentStatus.PAID) "Total paid" else "Total due", rupees(b.totalAmount), bold = true)
                 InfoRow("Payment mode", if (b.paymentId.isNotBlank()) "UPI online (Razorpay test mode)" else b.paymentMode)

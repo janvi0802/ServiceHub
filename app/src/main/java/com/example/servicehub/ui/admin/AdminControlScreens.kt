@@ -17,6 +17,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -755,7 +756,7 @@ private fun ProviderAdminCard(provider: Provider, onApprove: () -> Unit, onRejec
 // ===================================================================== Manage services
 
 @Composable
-fun AdminServicesScreen(onOpenCategories: () -> Unit, viewModel: AdminControlViewModel = viewModel()) {
+fun AdminServicesScreen(onOpenCategories: () -> Unit, onOpenCoupons: () -> Unit, viewModel: AdminControlViewModel = viewModel()) {
     val services by viewModel.services.collectAsState()
     val allCategories by CategoryStore.all.collectAsState()
     var editing by remember { mutableStateOf<Service?>(null) }
@@ -764,6 +765,7 @@ fun AdminServicesScreen(onOpenCategories: () -> Unit, viewModel: AdminControlVie
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Manage services") {
             TextButton(onClick = onOpenCategories) { Text("Categories") }
+            TextButton(onClick = onOpenCoupons) { Text("Coupons") }
             TextButton(onClick = { adding = true }) { Text("+ Add") }
         }
         MessageLine(viewModel)
@@ -909,11 +911,28 @@ private fun AddServiceDialog(onSave: (String, String, String, Int, Int) -> Unit,
 
 // ===================================================================== All bookings
 
+/**
+ * Lets the dashboard open "All bookings" with a filter already chosen
+ * (e.g. tapping "2 job redo requests" shows only redo requests).
+ */
+object AdminBookingsFilter {
+    const val REDO = "Redo"
+    const val UNPAID = "Unpaid"
+    const val EXPIRED = "Expired"
+    /** Set just before opening the screen; the screen uses it once and clears it. */
+    var next: String? = null
+}
+
 @Composable
-fun AdminBookingsScreen(viewModel: AdminControlViewModel = viewModel()) {
+fun AdminBookingsScreen(onOpenBooking: (String) -> Unit, viewModel: AdminControlViewModel = viewModel()) {
     val bookings by viewModel.bookings.collectAsState()
     var filter by rememberSaveable { mutableStateOf("All") }
-    val options = listOf("All") + BookingStatus.entries.map { it.label } + "Expired"
+    LaunchedEffect(Unit) {
+        AdminBookingsFilter.next?.let { filter = it }
+        AdminBookingsFilter.next = null
+    }
+    val options = listOf("All") + BookingStatus.entries.map { it.label } +
+        listOf(AdminBookingsFilter.EXPIRED, AdminBookingsFilter.REDO, AdminBookingsFilter.UNPAID)
     val categories by CategoryStore.all.collectAsState()
     var categoryName by rememberSaveable { mutableStateOf(ALL_CATEGORIES) }
 
@@ -929,7 +948,10 @@ fun AdminBookingsScreen(viewModel: AdminControlViewModel = viewModel()) {
             (categoryId == null || it.categoryId == categoryId) &&
                 when (filter) {
                     "All" -> true
-                    "Expired" -> it.isExpired
+                    AdminBookingsFilter.EXPIRED -> it.isExpired
+                    AdminBookingsFilter.REDO -> it.revisitStatus == com.example.servicehub.data.model.RevisitStatus.REQUESTED
+                    AdminBookingsFilter.UNPAID -> it.bookingStatus == BookingStatus.COMPLETED &&
+                        it.paymentStatus != com.example.servicehub.data.model.PaymentStatus.PAID
                     else -> it.bookingStatus.label == filter && !it.isExpired   // "Requested" = still waiting
                 }
         }
@@ -943,7 +965,7 @@ fun AdminBookingsScreen(viewModel: AdminControlViewModel = viewModel()) {
                     )
                 }
                 items(list, key = { it.id }) { booking ->
-                    BookingCard(booking, "${booking.customerName} → ${booking.providerName}", onClick = {})
+                    BookingCard(booking, "${booking.customerName} → ${booking.providerName}", onClick = { onOpenBooking(booking.id) })
                 }
             }
         }
