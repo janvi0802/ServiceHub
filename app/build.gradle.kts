@@ -1,8 +1,19 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     // Reads google-services.json so the app knows which Firebase project to use
     alias(libs.plugins.google.services)
+}
+
+// Private settings from local.properties (this file is NEVER uploaded to GitHub):
+//   RAZORPAY_KEY_ID=rzp_test_...            (Razorpay TEST key id)
+//   ADMIN_API_URL=https://xxx.vercel.app    (the small admin server)
+// If a value is missing, that feature shows "not set up" instead of crashing.
+val localProps = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -19,6 +30,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Read in code as BuildConfig.RAZORPAY_KEY_ID and BuildConfig.ADMIN_API_URL
+        buildConfigField("String", "RAZORPAY_KEY_ID", "\"${localProps.getProperty("RAZORPAY_KEY_ID", "")}\"")
+        buildConfigField("String", "ADMIN_API_URL", "\"${localProps.getProperty("ADMIN_API_URL", "")}\"")
     }
 
     buildTypes {
@@ -35,6 +50,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true   // lets the app read the private settings above
     }
 }
 
@@ -54,6 +70,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
+    // Razorpay checkout (UPI / cards) in TEST mode
+    implementation(libs.razorpay.checkout)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

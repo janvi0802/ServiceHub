@@ -44,6 +44,14 @@ import com.example.servicehub.data.FixedData
 import com.example.servicehub.data.model.Booking
 import com.example.servicehub.data.model.BookingStatus
 import com.example.servicehub.data.model.ComplaintStatus
+import com.example.servicehub.data.model.PaymentStatus
+import com.example.servicehub.payment.PaymentResult
+import com.example.servicehub.payment.RazorpayPayments
+import com.example.servicehub.payment.findActivity
+import com.example.servicehub.ui.components.AppCard
+import com.example.servicehub.ui.components.rupees
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.LaunchedEffect
 import com.example.servicehub.data.model.GUARANTEE_DAYS
 import com.example.servicehub.data.model.RevisitStatus
 import com.example.servicehub.ui.components.Caption
@@ -85,6 +93,17 @@ fun BookingDetailScreen(
     val isBusy by viewModel.isBusy.collectAsState()
     val message by viewModel.message.collectAsState()
     val context = LocalContext.current
+
+    // Listen for the Razorpay result (it arrives through MainActivity) and record it on this booking
+    LaunchedEffect(Unit) {
+        RazorpayPayments.results.collect { result ->
+            val current = (viewModel.booking.value as? BookingLoad.Loaded)?.booking ?: return@collect
+            when (result) {
+                is PaymentResult.Success -> if (result.bookingId == current.id) viewModel.markPaidOnline(result.paymentId)
+                is PaymentResult.Failure -> if (result.bookingId == current.id) viewModel.showMessage(result.message)
+            }
+        }
+    }
 
     var showCancel by rememberSaveable { mutableStateOf(false) }
     var showReschedule by rememberSaveable { mutableStateOf(false) }
@@ -175,6 +194,23 @@ fun BookingDetailScreen(
                         Text("Cancel booking", color = MaterialTheme.colorScheme.error)
                     }
                 }
+            }
+
+            // Job done but not paid yet (UPI chosen): pay online in TEST mode
+            if (status == BookingStatus.COMPLETED && booking.paymentStatus == PaymentStatus.PENDING) {
+                PayNowCard(
+                    amount = booking.totalAmount,
+                    enabled = !isBusy,
+                    onPay = {
+                        val activity = context.findActivity()
+                        if (!RazorpayPayments.isConfigured || activity == null) {
+                            viewModel.showMessage("Online payment is not set up yet. Please pay the professional directly.")
+                        } else {
+                            viewModel.clearMessage()
+                            RazorpayPayments.start(activity, booking, email = "", phone = booking.customerPhone)
+                        }
+                    },
+                )
             }
 
             if (status == BookingStatus.COMPLETED) {
@@ -278,6 +314,21 @@ fun BookingDetailScreen(
                 onConfirm = { date, slot -> viewModel.reschedule(booking, date, slot) { showReschedule = false } },
                 onDismiss = { showReschedule = false },
             )
+        }
+    }
+}
+
+/** "Payment pending ₹378 — Pay now with UPI", clearly marked as TEST mode. */
+@Composable
+private fun PayNowCard(amount: Int, enabled: Boolean, onPay: () -> Unit) {
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Payment pending", style = MaterialTheme.typography.titleSmall, color = StatusRequested)
+                Text(rupees(amount), style = MaterialTheme.typography.headlineSmall)
+                Caption("UPI · TEST MODE – no real money is charged")
+            }
+            Button(onClick = onPay, enabled = enabled, modifier = Modifier.height(50.dp)) { Text("Pay now") }
         }
     }
 }

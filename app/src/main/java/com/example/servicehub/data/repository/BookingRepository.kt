@@ -388,7 +388,13 @@ object BookingRepository {
      * to the total. In the SAME transaction we add 1 job and the provider's share to their totals,
      * so the booking and the provider's earnings can never disagree.
      */
-    suspend fun complete(bookingId: String, paymentMode: String, extras: List<ExtraItem> = emptyList()) {
+    suspend fun complete(
+        bookingId: String,
+        paymentMode: String,
+        extras: List<ExtraItem> = emptyList(),
+        /** true = money already received (cash, or UPI to the provider). false = customer pays in the app. */
+        paidNow: Boolean = true,
+    ) {
         val cleanExtras = validateExtras(extras)
         val extraSum = cleanExtras.sumOf { it.amount }
         val bookingRef = bookings.document(bookingId)
@@ -409,7 +415,7 @@ object BookingRepository {
                 mapOf(
                     "status" to BookingStatus.COMPLETED.name,
                     "paymentMode" to paymentMode,
-                    "paymentStatus" to PaymentStatus.PAID,
+                    "paymentStatus" to if (paidNow) PaymentStatus.PAID else PaymentStatus.PENDING,
                     // stored as simple name/amount maps (reads back as ExtraItem objects)
                     "extraItems" to cleanExtras.map { mapOf("name" to it.name, "amount" to it.amount) },
                     "extraAmount" to extraSum,
@@ -429,12 +435,35 @@ object BookingRepository {
             transaction.delete(slotRef(booking))   // job finished: slot no longer busy
             updated
         }.await()
+        val extrasText = if (extraSum > 0) " (incl. ₹$extraSum extra parts/work)" else ""
         NotificationRepository.send(
             b.customerId, "Job completed",
-            "${b.serviceName} is done. Paid ₹${b.totalAmount} by $paymentMode" +
-                (if (extraSum > 0) " (incl. ₹$extraSum extra parts/work)" else "") +
-                ". Please rate ${b.providerName}!",
+            if (paidNow) "${b.serviceName} is done. Paid ₹${b.totalAmount} by $paymentMode$extrasText. Please rate ${b.providerName}!"
+            else "${b.serviceName} is done. Please pay ₹${b.totalAmount}$extrasText with UPI in the app.",
             b.id,
+        )
+    }
+
+    /**
+     * Customer paid online (Razorpay test mode): COMPLETED + payment PENDING -> PAID,
+     * saving Razorpay's payment id as proof. The provider is told.
+     */
+    suspend fun markPaidOnline(bookingId: String, paymentId: String) {
+        val b = changeBooking(
+            bookingId, setOf(BookingStatus.COMPLETED),
+            mapOf(
+                "paymentStatus" to PaymentStatus.PAID,
+                "paymentMode" to "UPI",
+                "paymentId" to paymentId,
+                "paidAt" to System.currentTimeMillis(),
+            ),
+            check = { booking ->
+                if (booking.paymentStatus == PaymentStatus.PAID) throw BookingException("This booking is already paid.")
+            },
+        )
+        NotificationRepository.send(
+            b.providerId, "Payment received",
+            "${b.customerName} paid ₹${b.totalAmount} online for ${b.serviceName}.", b.id,
         )
     }
 

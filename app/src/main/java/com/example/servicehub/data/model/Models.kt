@@ -207,6 +207,9 @@ data class Booking(
     val acceptedAt: Long = 0L,
     val startedAt: Long = 0L,
     val completedAt: Long = 0L,
+    /** Online payment (Razorpay test mode): its payment id and when it was paid. Empty for cash. */
+    val paymentId: String = "",
+    val paidAt: Long = 0L,
     /** "Book for someone else": the person at the address (empty = the customer themselves). */
     val contactName: String = "",
     val contactPhone: String = "",

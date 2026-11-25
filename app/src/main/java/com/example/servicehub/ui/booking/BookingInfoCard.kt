@@ -40,8 +40,14 @@ fun BookingInfoCard(booking: Booking, personLabel: String, personName: String) {
             InfoRow("Total", rupees(booking.totalAmount), bold = true)
             InfoRow(
                 "Payment",
-                "${booking.paymentMode} • " + if (booking.paymentStatus == PaymentStatus.PAID) "Paid" else "Pay after service",
+                "${booking.paymentMode} • " + when {
+                    booking.paymentStatus == PaymentStatus.PAID && booking.paymentId.isNotBlank() -> "Paid online (test)"
+                    booking.paymentStatus == PaymentStatus.PAID -> "Paid"
+                    booking.bookingStatus == com.example.servicehub.data.model.BookingStatus.COMPLETED -> "Payment pending"
+                    else -> "Pay after service"
+                },
             )
+            if (booking.paymentId.isNotBlank()) InfoRow("Payment ID", booking.paymentId)
             if (booking.rejectReason.isNotBlank()) InfoRow("Reject reason", booking.rejectReason)
             if (booking.cancelReason.isNotBlank()) InfoRow("Cancel reason", booking.cancelReason)
             Text(

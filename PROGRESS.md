@@ -153,3 +153,14 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 1. Publish `firestore.rules` in Firebase Console (Firestore → Rules → paste → Publish).
 2. Run `docs/TEST_SCRIPT.md` on two phones (35 cases). Fix anything that fails.
 3. Take screenshots from the checklist in `docs/REPORT_KIT.md`.
+
+## Round: UPI test payment + admin password change (2026-11-25)
+
+- Customer **Pay now** (Razorpay TEST mode, no real money) on a completed booking whose payment is pending.
+  Booking becomes PAID with Payment ID; provider is notified; receipt shows the Payment ID.
+- Provider can complete a UPI job without "already received", leaving payment pending for the customer.
+- Admin **Change password** (User details) through a free Vercel server in `admin-server/` (Firebase Admin SDK).
+  The user is signed out everywhere and gets an in-app notification. "Reset link" still works without the server.
+- Setup needed in `local.properties` (never uploaded): `RAZORPAY_KEY_ID=rzp_test_...` and `ADMIN_API_URL=https://...`.
+  Without them the buttons are shown disabled with a hint.
+- Test: Pay now → UPI ID `success@razorpay` (passes) / `failure@razorpay` (fails, stays pending).

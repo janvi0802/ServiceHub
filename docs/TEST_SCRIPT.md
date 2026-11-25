@@ -149,3 +149,13 @@ reminder, "from ₹" prices, search, receipt text, weekdays and days off, admin 
 3. Next → choose **release** → **Create**.
 4. When it finishes, click **locate**: the file is `app\release\app-release.apk` (about 6 MB).
    Send it to any Android phone and install it ("allow from this source" if asked).
+
+## New cases (UPI test payment, admin password)
+
+| TC | Steps | Expected |
+|---|---|---|
+| 113 | Provider completes a UPI job, leaves "Already received" unticked | Booking COMPLETED, payment pending; customer sees **Pay now** |
+| 114 | Customer → Pay now → UPI `success@razorpay` | Booking PAID, Payment ID shown, provider gets "Payment received" |
+| 115 | Customer → Pay now → UPI `failure@razorpay` (or close) | Message shown, payment stays pending |
+| 116 | Admin → Users → a real customer → Change password → new password twice | Success message; user is signed out and gets a notification; new password logs in |
+| 117 | Change password with mismatching boxes / under 6 characters | Change button disabled, error text shown |

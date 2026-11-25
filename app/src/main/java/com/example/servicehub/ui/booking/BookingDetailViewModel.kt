@@ -115,8 +115,17 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     fun cancelByProvider(reason: String) =
         run("Job cancelled. The customer has been told.") { BookingRepository.cancelByProvider(bookingId, reason) }
 
-    fun complete(paymentMode: String, extras: List<ExtraItem>, onDone: () -> Unit) =
-        run("Job completed. Payment recorded.", onDone) { BookingRepository.complete(bookingId, paymentMode, extras) }
+    fun complete(paymentMode: String, extras: List<ExtraItem>, paidNow: Boolean, onDone: () -> Unit) =
+        run(if (paidNow) "Job completed. Payment recorded." else "Job completed. The customer will pay with UPI in the app.", onDone) {
+            BookingRepository.complete(bookingId, paymentMode, extras, paidNow)
+        }
+
+    /** Razorpay said the payment worked: record it on the booking. */
+    fun markPaidOnline(paymentId: String) =
+        run("Payment successful. Thank you!") { BookingRepository.markPaidOnline(bookingId, paymentId) }
+
+    /** Show a payment problem (cancelled / failed) under the buttons. */
+    fun showMessage(text: String) { message.value = text }
 
     fun markOnTheWay() = run("Customer told you are on the way.") { BookingRepository.markOnTheWay(bookingId) }
 

@@ -84,6 +84,47 @@ object AdminRepository {
             ).await()
     }
 
+    /** True when the admin server address was put in local.properties (ADMIN_API_URL). */
+    val canChangePasswords: Boolean
+        get() = com.example.servicehub.BuildConfig.ADMIN_API_URL.startsWith("https://")
+
+    /**
+     * Asks our small admin server (on Vercel) to set a new password for [uid].
+     * We send the admin's Firebase ID token as proof of who is asking; the server checks it
+     * and the admin role itself, so a fake request from another app is refused.
+     * Network calls must not run on the main thread, so this runs on Dispatchers.IO.
+     */
+    suspend fun changeUserPassword(uid: String, newPassword: String) {
+        val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+            ?: throw Exception("Please log in again.")
+        val idToken = user.getIdToken(true).await().token ?: throw Exception("Please log in again.")
+        val url = com.example.servicehub.BuildConfig.ADMIN_API_URL.trimEnd('/') + "/api/set-password"
+
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val connection = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 15_000
+                readTimeout = 20_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer $idToken")
+            }
+            try {
+                val body = org.json.JSONObject().put("uid", uid).put("newPassword", newPassword).toString()
+                connection.outputStream.use { it.write(body.toByteArray()) }
+                val code = connection.responseCode
+                val text = (if (code in 200..299) connection.inputStream else connection.errorStream)
+                    ?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) {
+                    val message = runCatching { org.json.JSONObject(text).getString("error") }.getOrNull()
+                    throw Exception(message ?: "Server error ($code).")
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
     /** Admin adds a whole new category, e.g. "Yoga Teacher" with the yoga icon. Goes after the others. */
     suspend fun addCategory(name: String, iconKey: String, colorHex: Long) {
         val ref = db.collection("categories").document()

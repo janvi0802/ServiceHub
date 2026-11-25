@@ -278,9 +278,9 @@ fun JobDetailScreen(
         if (showComplete) {
             CompleteJobDialog(
                 booking = booking,
-                onConfirm = { mode, extras ->
+                onConfirm = { mode, extras, paidNow ->
                     showComplete = false
-                    viewModel.complete(mode, extras) {}
+                    viewModel.complete(mode, extras, paidNow) {}
                 },
                 onDismiss = { showComplete = false },
             )
@@ -293,7 +293,7 @@ fun JobDetailScreen(
  * and "Payment received". The amount to collect updates as items are added.
  */
 @Composable
-private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraItem>) -> Unit, onDismiss: () -> Unit) {
+private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraItem>, Boolean) -> Unit, onDismiss: () -> Unit) {
     var mode by remember { mutableStateOf(booking.paymentMode.ifBlank { FixedData.paymentModes.first() }) }
     var received by remember { mutableStateOf(false) }
     // Each row: name + amount typed as text (turned into numbers when saving)
@@ -341,7 +341,11 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraIt
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = received, onCheckedChange = { received = it })
-                    Text("Payment received")
+                    Text(if (mode == "UPI") "Already received on my UPI" else "Payment received")
+                }
+                // UPI without the tick: the customer pays in the app (Razorpay, test mode)
+                if (mode == "UPI" && !received) {
+                    Caption("Not ticked: the customer will see \"Pay now\" and pay with UPI in the app.")
                 }
             }
         },
@@ -351,9 +355,10 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (String, List<ExtraIt
                     val extras = names.indices
                         .filter { names[it].isNotBlank() }
                         .map { ExtraItem(names[it].trim(), amounts[it].toIntOrNull() ?: 0) }
-                    onConfirm(mode, extras)
+                    onConfirm(mode, extras, received)
                 },
-                enabled = received && rowsValid,
+                // Cash must be received first; UPI can be paid later by the customer in the app
+                enabled = rowsValid && (received || mode == "UPI"),
             ) { Text("Complete") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },

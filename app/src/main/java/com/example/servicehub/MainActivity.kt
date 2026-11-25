@@ -8,14 +8,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.example.servicehub.data.CategoryStore
 import com.example.servicehub.navigation.AppNavHost
+import com.example.servicehub.payment.RazorpayPayments
 import com.example.servicehub.ui.theme.ServiceHubTheme
+import com.razorpay.Checkout
+import com.razorpay.PaymentData
+import com.razorpay.PaymentResultWithDataListener
 
-/** The only Activity. Every screen is a Composable inside AppNavHost. */
-class MainActivity : ComponentActivity() {
+/**
+ * The only Activity. Every screen is a Composable inside AppNavHost.
+ * It also receives Razorpay's payment result (Razorpay always reports back to the Activity).
+ */
+class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Keep the category list (built-in + admin-added) up to date for the whole app.
         CategoryStore.start()
+        // Loads Razorpay's screen in advance so "Pay now" opens faster.
+        if (RazorpayPayments.isConfigured) Checkout.preload(applicationContext)
         // Our app is always light, so ask for DARK status-bar icons (clock, battery)
         // even when the phone is in dark mode. Otherwise they would be white on white.
         enableEdgeToEdge(
@@ -27,5 +36,15 @@ class MainActivity : ComponentActivity() {
                 AppNavHost()
             }
         }
+    }
+
+    // ---- Razorpay results (passed on to RazorpayPayments, which tells the booking screen)
+
+    override fun onPaymentSuccess(razorpayPaymentId: String?, paymentData: PaymentData?) {
+        RazorpayPayments.onSuccess(razorpayPaymentId)
+    }
+
+    override fun onPaymentError(code: Int, description: String?, paymentData: PaymentData?) {
+        RazorpayPayments.onError(description)
     }
 }

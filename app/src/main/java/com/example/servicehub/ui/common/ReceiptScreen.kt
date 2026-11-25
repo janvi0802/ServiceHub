@@ -101,8 +101,9 @@ fun ReceiptScreen(
                 b.extraItems.forEach { InfoRow(it.name, rupees(it.amount)) }   // spare parts / extra work
                 InfoRow("Visit fee (ServiceHub)", rupees(b.visitFee))
                 HorizontalDivider(Modifier.padding(vertical = 6.dp))
-                InfoRow("Total paid", rupees(b.totalAmount), bold = true)
-                InfoRow("Payment mode", b.paymentMode)
+                InfoRow(if (b.paymentStatus == PaymentStatus.PAID) "Total paid" else "Total due", rupees(b.totalAmount), bold = true)
+                InfoRow("Payment mode", if (b.paymentId.isNotBlank()) "UPI online (Razorpay test mode)" else b.paymentMode)
+                if (b.paymentId.isNotBlank()) InfoRow("Payment ID", b.paymentId)
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Thank you for choosing ServiceHub!",

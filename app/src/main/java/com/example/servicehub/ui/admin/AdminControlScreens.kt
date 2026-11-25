@@ -81,6 +81,7 @@ import com.example.servicehub.data.model.ComplaintStatus
 import com.example.servicehub.data.repository.AdminRepository
 import com.example.servicehub.data.repository.AuthRepository
 import androidx.compose.material.icons.filled.LockReset
+import androidx.compose.material.icons.filled.Password
 import com.example.servicehub.data.repository.ComplaintRepository
 import com.example.servicehub.ui.components.openDialer
 import com.example.servicehub.data.repository.ServiceRepository
@@ -138,6 +139,16 @@ class AdminControlViewModel : ViewModel() {
      */
     fun sendPasswordReset(user: User) =
         act("Password reset link sent to ${user.email}.") { AuthRepository.sendPasswordReset(user.email) }
+
+    /** Sets a new password through the admin server. The message shows the server's answer. */
+    fun changePassword(user: User, newPassword: String) = viewModelScope.launch {
+        message.value = try {
+            AdminRepository.changeUserPassword(user.id, newPassword)
+            "Password changed for ${user.name}. They have been signed out and notified."
+        } catch (e: Exception) {
+            "Not changed: ${e.message ?: "please try again."}"
+        }
+    }
 
     fun setBlocked(user: User, blocked: Boolean) =
         act(if (blocked) "${user.name} blocked." else "${user.name} unblocked.") {
@@ -493,6 +504,43 @@ private fun UserCard(user: User, onClick: () -> Unit, onResetPassword: () -> Uni
     }
 }
 
+/**
+ * Admin types the new password twice. Rules (also checked again on the server):
+ * 6–64 characters, both boxes must match.
+ */
+@Composable
+private fun ChangePasswordDialog(user: User, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var first by remember { mutableStateOf("") }
+    var second by remember { mutableStateOf("") }
+    val problem = when {
+        first.isEmpty() -> null
+        first.length < 6 -> "At least 6 characters."
+        first.length > 64 -> "At most 64 characters."
+        second.isNotEmpty() && second != first -> "The two passwords do not match."
+        else -> null
+    }
+    val valid = first.length in 6..64 && first == second
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Change ${user.name}'s password") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "${user.name} will be signed out on all phones and must log in with this new password. " +
+                        "Tell them the new password privately (for example in person or by phone).",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextInput(first, { first = it }, "New password", isPassword = true)
+                TextInput(second, { second = it }, "Type it again", isPassword = true)
+                problem?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(first) }, enabled = valid) { Text("Change") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },
+    )
+}
+
 /** "Send a reset link to …?" — explains what will happen before sending. */
 @Composable
 private fun PasswordResetDialog(user: User, onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -526,6 +574,7 @@ fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminCo
     val context = LocalContext.current
     var confirm by rememberSaveable { mutableStateOf(false) }
     var showReset by rememberSaveable { mutableStateOf(false) }
+    var showChangePassword by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("User details", onBack)
@@ -566,12 +615,26 @@ fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminCo
                     Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { openDialer(context, user.phone) }) { Text("Call") }
                         if (canSendPasswordReset(user)) {
-                            OutlinedButton(onClick = { showReset = true }) { Text("Reset password") }
+                            OutlinedButton(onClick = { showReset = true }) { Text("Reset link") }
                         }
                         if (user.isBlocked) {
                             Button(onClick = { confirm = true }) { Text("Unblock") }
                         } else {
                             OutlinedButton(onClick = { confirm = true }) { Text("Block", color = StatusRejected) }
+                        }
+                    }
+                    // Set a new password directly (needs the admin server; sample providers have no login)
+                    if (user.role != Roles.ADMIN && canSendPasswordReset(user)) {
+                        Button(
+                            onClick = { showChangePassword = true },
+                            enabled = AdminRepository.canChangePasswords,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        ) {
+                            Icon(Icons.Filled.Password, contentDescription = null)
+                            Text("  Change password")
+                        }
+                        if (!AdminRepository.canChangePasswords) {
+                            Caption("Set up the admin server first (see admin-server/README.md).")
                         }
                     }
                 }
@@ -594,6 +657,16 @@ fun AdminUserDetailScreen(userId: String, onBack: () -> Unit, viewModel: AdminCo
             }
         }
 
+        if (showChangePassword) {
+            ChangePasswordDialog(
+                user = user,
+                onSave = { newPassword ->
+                    viewModel.changePassword(user, newPassword)
+                    showChangePassword = false
+                },
+                onDismiss = { showChangePassword = false },
+            )
+        }
         if (showReset) {
             PasswordResetDialog(user, onConfirm = {
                 viewModel.sendPasswordReset(user)

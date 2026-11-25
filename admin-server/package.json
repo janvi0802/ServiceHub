@@ -1,0 +1,11 @@
+{
+  "name": "servicehub-admin-server",
+  "private": true,
+  "description": "Tiny server so the ServiceHub admin can set a user's password (Firebase Admin SDK).",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
