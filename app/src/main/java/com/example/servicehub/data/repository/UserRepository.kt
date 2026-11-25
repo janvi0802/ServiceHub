@@ -11,6 +11,19 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 
 /**
+ * A clear message when saving fails. PERMISSION_DENIED means Firestore's security rules refused
+ * the change (usually: the latest firestore.rules were not published in the Firebase Console).
+ */
+fun saveErrorMessage(e: Throwable): String {
+    val denied = generateSequence(e) { it.cause }.any {
+        (it as? com.google.firebase.firestore.FirebaseFirestoreException)?.code ==
+            com.google.firebase.firestore.FirebaseFirestoreException.Code.PERMISSION_DENIED
+    }
+    return if (denied) "Not saved: permission denied. The admin must publish the latest security rules in Firebase."
+    else "Not saved. Check your internet and try again."
+}
+
+/**
  * Reads and updates people's data in Firestore
  * (the "users" and "providers" collections).
  */

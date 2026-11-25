@@ -206,16 +206,16 @@ fun JobDetailScreen(
                     if (booking.revisitStatus == RevisitStatus.REQUESTED) {
                         InfoBanner(
                             Icons.Filled.Replay,
-                            "Free revisit requested: \"${booking.revisitReason}\". Call the customer and fix it.",
+                            "Complaint – customer asked you to redo this job free: \"${booking.revisitReason}\". Call the customer and fix it.",
                             StatusRequested,
                         )
                         Button(
                             onClick = viewModel::markRevisitDone,
                             enabled = !isBusy,
                             modifier = Modifier.fillMaxWidth().height(50.dp),
-                        ) { Text("Mark revisit done") }
+                        ) { Text("Mark as redone") }
                     } else if (booking.revisitStatus == RevisitStatus.DONE) {
-                        InfoBanner(Icons.Filled.TaskAlt, "Free revisit completed.", StatusCompleted)
+                        InfoBanner(Icons.Filled.TaskAlt, "Job redone free of charge after the customer's complaint.", StatusCompleted)
                     }
                     OutlinedButton(
                         onClick = { onReceipt(booking.id) },

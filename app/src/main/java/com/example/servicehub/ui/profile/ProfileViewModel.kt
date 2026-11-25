@@ -7,6 +7,7 @@ import com.example.servicehub.data.model.SavedAddress
 import com.example.servicehub.data.model.User
 import com.example.servicehub.data.repository.AuthRepository
 import com.example.servicehub.data.repository.UserRepository
+import com.example.servicehub.data.repository.saveErrorMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -109,7 +110,7 @@ class ProfileViewModel : ViewModel() {
             UserRepository.setSavedAddresses(user.id, list)
             _uiState.update { it.copy(user = user.copy(savedAddresses = list), message = successText) }
         } catch (e: Exception) {
-            _uiState.update { it.copy(message = "Could not save the address. Check internet.") }
+            _uiState.update { it.copy(message = saveErrorMessage(e)) }
         }
     }
 

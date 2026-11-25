@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.stateIn
 class FavoritesViewModel : ViewModel() {
     private val favoritesHelper = FavoritesHelper(viewModelScope)
     val favoriteIds: StateFlow<Set<String>> = favoritesHelper.ids
+    val error = favoritesHelper.error
     fun toggle(providerId: String) = favoritesHelper.toggle(providerId)
 
     /** The favourite professionals, live. Whenever the list of ids changes, listen again. */
@@ -80,6 +81,8 @@ fun FavoritesScreen(
     val providers by viewModel.providers.collectAsState()
     val ids by viewModel.favoriteIds.collectAsState()
     val services by viewModel.services.collectAsState()
+    val error by viewModel.error.collectAsState()
+    ToastMessage(error) { viewModel.error.value = null }
     val shown = providers.filter { it.id in ids }.sortedBy { it.name }
 
     Column(Modifier.fillMaxSize()) {

@@ -49,9 +49,9 @@ val customerFaqs = listOf(
     Faq("Can I cancel or reschedule?",
         "Yes, while the booking is Requested or Accepted. Open the booking and tap Cancel booking or Reschedule. " +
             "If you reschedule an accepted booking, the professional must accept the new time again."),
-    Faq("What if the problem comes back?",
-        "Every completed job has a $GUARANTEE_DAYS-day guarantee. Open the booking and tap \"Problem came back? Free revisit\". " +
-            "The professional will come back at no extra cost."),
+    Faq("I'm not happy with the work. What can I do?",
+        "Every completed job has a $GUARANTEE_DAYS-day guarantee. Open the booking and tap \"Not happy with the work? Get it redone free\". " +
+            "Describe what's wrong and the professional will come back and redo the job at no extra cost."),
     Faq("What if the professional doesn't arrive?",
         "You'll see \"On the way\" when they leave. If they don't come, call them from the booking, reschedule, or cancel. " +
             "You can also report it to us."),
@@ -73,9 +73,9 @@ val providerFaqs = listOf(
         "You keep the service price and any extra parts. The ₹${FixedData.VISIT_FEE} visit fee is ServiceHub's platform fee."),
     Faq("I can't come to an accepted job.",
         "Open the job and tap \"Can't come? Cancel this job\" with a reason. The customer is told at once."),
-    Faq("What is a free revisit?",
-        "If the same problem comes back within $GUARANTEE_DAYS days, the customer can ask you to come back for free. " +
-            "It appears under Jobs → Free revisits. Mark it done after fixing it."),
+    Faq("A customer complained. What do I do?",
+        "Within $GUARANTEE_DAYS days of a job, a customer who is not happy can ask you to redo it for free. " +
+            "It appears under Jobs → Job redo requests. Call them, redo the work, then tap \"Mark as redone\"."),
 )
 
 /** Help & support: tap a question to show its answer. */

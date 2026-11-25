@@ -127,6 +127,8 @@ fun NotificationsScreen(
 
 /** Which icon and colour a notification gets, chosen from its title. */
 fun notificationStyle(title: String): Pair<ImageVector, Color> = when {
+    title.contains("complaint", true) -> Icons.Filled.Cancel to StatusRequested
+    title.contains("redone", true) -> Icons.Filled.TaskAlt to StatusCompleted
     title.contains("request", true) -> Icons.Filled.NotificationsActive to StatusRequested
     title.contains("accepted", true) || title.contains("approved", true) && !title.contains("not", true) ->
         Icons.Filled.CheckCircle to StatusAccepted

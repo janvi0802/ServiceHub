@@ -120,9 +120,9 @@ class BookingDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
     fun markOnTheWay() = run("Customer told you are on the way.") { BookingRepository.markOnTheWay(bookingId) }
 
-    fun markRevisitDone() = run("Revisit marked as done.") { BookingRepository.markRevisitDone(bookingId) }
+    fun markRevisitDone() = run("Marked as redone. The customer has been told.") { BookingRepository.markRevisitDone(bookingId) }
 
     // ---- customer: 7-day guarantee
     fun requestRevisit(reason: String) =
-        run("Revisit requested. The professional will contact you.") { BookingRepository.requestRevisit(bookingId, reason) }
+        run("Complaint sent. The professional will contact you to redo the job free.") { BookingRepository.requestRevisit(bookingId, reason) }
 }

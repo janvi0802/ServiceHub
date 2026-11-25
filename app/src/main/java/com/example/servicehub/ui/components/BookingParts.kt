@@ -128,8 +128,8 @@ fun timelineSteps(booking: Booking): List<Pair<String, Long>> {
     if (booking.onTheWayAt > 0) steps += "On the way" to booking.onTheWayAt
     if (booking.startedAt > 0) steps += "Started" to booking.startedAt
     if (booking.completedAt > 0) steps += "Completed" to booking.completedAt
-    if (booking.revisitRequestedAt > 0) steps += "Revisit requested" to booking.revisitRequestedAt
-    if (booking.revisitDoneAt > 0) steps += "Revisit done" to booking.revisitDoneAt
+    if (booking.revisitRequestedAt > 0) steps += "Complaint: redo requested" to booking.revisitRequestedAt
+    if (booking.revisitDoneAt > 0) steps += "Job redone" to booking.revisitDoneAt
     when (booking.bookingStatus) {
         BookingStatus.REJECTED -> steps += "Rejected" to booking.updatedAt
         BookingStatus.CANCELLED -> steps += "Cancelled" to booking.updatedAt

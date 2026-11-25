@@ -353,7 +353,7 @@ fun ProviderRequestsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (revisits.isNotEmpty()) {
-                jobSection("Free revisits (${revisits.size})", revisits, "", onJobClick)
+                jobSection("Job redo requests (${revisits.size})", revisits, "", onJobClick)
             }
             jobSection("New requests (${requests.size})", requests, "No new requests.", onJobClick)
             jobSection("Upcoming (${upcoming.size})", upcoming, "No upcoming jobs.", onJobClick)

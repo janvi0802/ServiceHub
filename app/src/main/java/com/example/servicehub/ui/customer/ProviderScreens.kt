@@ -53,6 +53,10 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import kotlinx.coroutines.flow.map
+import android.widget.Toast
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import com.example.servicehub.data.repository.saveErrorMessage
 import com.example.servicehub.ui.components.AppCard
 import com.example.servicehub.ui.components.BottomActionBar
 import com.example.servicehub.ui.components.Caption
@@ -110,6 +114,7 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
     private val favoritesHelper = FavoritesHelper(viewModelScope)
     val favorites: StateFlow<Set<String>> = favoritesHelper.ids
+    val favoriteError = favoritesHelper.error
     fun toggleFavorite(providerId: String) = favoritesHelper.toggle(providerId)
 
     val selectedArea = MutableStateFlow(ALL_AREAS)
@@ -148,6 +153,8 @@ fun ProviderListScreen(
     viewModel: ProviderListViewModel = viewModel(),
 ) {
     val favorites by viewModel.favorites.collectAsState()
+    val favoriteError by viewModel.favoriteError.collectAsState()
+    ToastMessage(favoriteError) { viewModel.favoriteError.value = null }
     val providers by viewModel.providers.collectAsState()
     val area by viewModel.selectedArea.collectAsState()
     val sort by viewModel.selectedSort.collectAsState()
@@ -312,8 +319,27 @@ class FavoritesHelper(private val scope: kotlinx.coroutines.CoroutineScope) {
         .catch { emit(emptySet()) }
         .stateIn(scope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    /** Shown once as a short popup message ("Toast") when saving fails, then cleared. */
+    val error = MutableStateFlow<String?>(null)
+
     fun toggle(providerId: String) = scope.launch {
-        runCatching { UserRepository.setFavorite(uid, providerId, providerId !in ids.value) }
+        try {
+            UserRepository.setFavorite(uid, providerId, providerId !in ids.value)
+        } catch (e: Exception) {
+            error.value = saveErrorMessage(e)
+        }
+    }
+}
+
+/** Shows [message] as a short popup at the bottom of the screen, then calls [onShown]. */
+@Composable
+fun ToastMessage(message: String?, onShown: () -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(message) {
+        if (message != null) {
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            onShown()
+        }
     }
 }
 
@@ -325,6 +351,7 @@ class ProviderDetailViewModel(savedStateHandle: SavedStateHandle) : ViewModel() 
 
     private val favoritesHelper = FavoritesHelper(viewModelScope)
     val favorites: StateFlow<Set<String>> = favoritesHelper.ids
+    val favoriteError = favoritesHelper.error
     fun toggleFavorite() = favoritesHelper.toggle(providerId)
 
     val provider: StateFlow<Provider?> = ProviderRepository.liveProvider(providerId)
@@ -352,6 +379,8 @@ fun ProviderDetailScreen(
     val reviews by viewModel.reviews.collectAsState()
     val service by viewModel.service.collectAsState()
     val favorites by viewModel.favorites.collectAsState()
+    val favoriteError by viewModel.favoriteError.collectAsState()
+    ToastMessage(favoriteError) { viewModel.favoriteError.value = null }
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Professional", onBack) {

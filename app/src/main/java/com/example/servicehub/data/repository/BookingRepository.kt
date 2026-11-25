@@ -265,13 +265,13 @@ object BookingRepository {
             ),
             check = { booking ->
                 if (!canRequestRevisitAt(booking, System.currentTimeMillis())) {
-                    throw BookingException("A revisit can be requested once, within $GUARANTEE_DAYS days of completion.")
+                    throw BookingException("A free job redo can be requested once, within $GUARANTEE_DAYS days of completion.")
                 }
             },
         )
         NotificationRepository.send(
-            b.providerId, "Revisit requested",
-            "${b.customerName} asked for a free revisit for ${b.serviceName}: $reason", b.id,
+            b.providerId, "Complaint: job redo requested",
+            "${b.customerName} is not happy with ${b.serviceName} and asked you to redo it free: $reason", b.id,
         )
     }
 
@@ -281,12 +281,12 @@ object BookingRepository {
             bookingId, setOf(BookingStatus.COMPLETED),
             mapOf("revisitStatus" to RevisitStatus.DONE, "revisitDoneAt" to System.currentTimeMillis()),
             check = { booking ->
-                if (booking.revisitStatus != RevisitStatus.REQUESTED) throw BookingException("No revisit is waiting for this job.")
+                if (booking.revisitStatus != RevisitStatus.REQUESTED) throw BookingException("No job redo is waiting for this booking.")
             },
         )
         NotificationRepository.send(
-            b.customerId, "Revisit completed",
-            "${b.providerName} has completed the free revisit for ${b.serviceName}.", b.id,
+            b.customerId, "Job redone",
+            "${b.providerName} has redone your ${b.serviceName} free of charge.", b.id,
         )
     }
 

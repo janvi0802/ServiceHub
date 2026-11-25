@@ -112,7 +112,7 @@ fun AdminDashboardScreen(
                         "Call both sides and mark as resolved", StatusRejected, onClick = onOpenComplaints)
                 }
                 if (s.openRevisits > 0) {
-                    ListRow(Icons.Filled.Replay, "${s.openRevisits} free revisit(s) waiting",
+                    ListRow(Icons.Filled.Replay, "${s.openRevisits} job redo request(s) waiting",
                         "7-day guarantee: providers must come back", StatusRequested, onClick = onOpenBookings)
                 }
                 if (s.expiredRequests > 0) {

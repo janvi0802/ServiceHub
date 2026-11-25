@@ -147,10 +147,10 @@ fun BookingDetailScreen(
             when (booking.revisitStatus) {
                 RevisitStatus.REQUESTED -> InfoBanner(
                     Icons.Filled.Replay,
-                    "Free revisit requested: \"${booking.revisitReason}\". ${booking.providerName} will contact you.",
+                    "Complaint sent – job redo requested: \"${booking.revisitReason}\". ${booking.providerName} will contact you.",
                     StatusRequested,
                 )
-                RevisitStatus.DONE -> InfoBanner(Icons.Filled.TaskAlt, "Free revisit completed.", StatusCompleted)
+                RevisitStatus.DONE -> InfoBanner(Icons.Filled.TaskAlt, "The job was redone free of charge.", StatusCompleted)
             }
 
             BookingInfoCard(booking, "Provider", booking.providerName)
@@ -192,10 +192,10 @@ fun BookingDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(Icons.Filled.VerifiedUser, contentDescription = null)
-                    Text("  Problem came back? Free revisit")
+                    Text("  Not happy with the work? Get it redone free")
                 }
                 Caption(
-                    "$GUARANTEE_DAYS-day service guarantee: if the same problem returns, the professional comes back free.",
+                    "$GUARANTEE_DAYS-day service guarantee: raise a complaint and the professional will redo the job at no extra cost.",
                 )
             }
 
@@ -237,8 +237,8 @@ fun BookingDetailScreen(
 
         if (showRevisit) {
             ReasonDialog(
-                title = "Request a free revisit",
-                confirmText = "Request revisit",
+                title = "Complaint: get this job redone",
+                confirmText = "Send complaint",
                 onConfirm = { reason ->
                     showRevisit = false
                     viewModel.requestRevisit(reason)

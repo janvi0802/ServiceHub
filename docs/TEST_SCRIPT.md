@@ -109,8 +109,9 @@ Mark each row ✅ or ❌ and note what you saw.
 | TC92 | On my way | Provider: accepted job → "I'm on my way" | Customer sees "… is on the way", gets a notification; timeline shows "On the way" | |
 | TC93 | Extra parts | Provider: Complete → + Add item "Tap cartridge" ₹180 | Amount to collect updates; receipt lists the item; total = service + item + visit fee | |
 | TC94 | Bad extra | Item with no name or ₹0 | Complete button disabled with a message | |
-| TC95 | Free revisit | Customer: completed booking (within 7 days) → "Problem came back? Free revisit" + reason | Provider sees it under "Free revisits" with a badge; admin dashboard lists it | |
-| TC96 | Revisit done | Provider → Mark revisit done | Customer sees "Free revisit completed" + notification; button gone (only once) | |
+| TC95 | Complaint → job redo | Customer: completed booking (within 7 days) → "Not happy with the work? Get it redone free" → describe the problem → Send complaint | Provider sees it under "Job redo requests" with a badge and a notification; admin dashboard lists it | |
+| TC96 | Job redone | Provider → Mark as redone | Customer sees "The job was redone free of charge" + notification; the option is gone (once per booking) | |
+| TC112 | Save errors are shown | (Only if rules are old) add a favourite or a saved address | A message explains "permission denied – publish the latest rules" instead of nothing happening | |
 | TC97 | Saved addresses | Profile → Saved addresses → + Add "Work" | Booking form shows Profile / Work chips; tapping fills the address | |
 | TC98 | Earnings split | Complete a ₹149 job (total ₹198) | Provider earnings +₹149; admin "Earnings split": platform ₹49, providers ₹149 | |
 | TC99 | Show password | Login / Register: tap the eye icon in the password box | Password becomes visible; tap again to hide | |

@@ -134,7 +134,7 @@ fun ServiceDetailScreen(
                 CardTitle("Our promise")
                 Point(Icons.Filled.Verified, StatusCompleted, "Professionals approved by the ServiceHub team")
                 Point(Icons.Filled.CurrencyRupee, StatusCompleted, "Fixed price shown before you book")
-                Point(Icons.Filled.Replay, StatusCompleted, "$GUARANTEE_DAYS-day free revisit if the problem comes back")
+                Point(Icons.Filled.Replay, StatusCompleted, "Not happy? The job is redone free within $GUARANTEE_DAYS days")
             }
         }
 
