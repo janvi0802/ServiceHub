@@ -35,11 +35,15 @@ Live pages to screenshot for proof:
 | 23 | `114a3b5` | 26 Nov 2026 12:20 | Area fallback, push opens the right page, change email, offers list, extras total limit, rule fix; updated README, code guide, report kit and project report |
 | 24 | `06a36d7` | 26 Nov 2026 12:20 | Add GitHub commit and push history |
 | 25 | `e4df0a8` | 26 Nov 2026 22:59 | Project report in college format (Word + PDF) with diagrams and screenshots; README lists repository contents |
+| 26 | `0219d64` | 26 Nov 2026 22:59 | Update GitHub history |
+| 27 | `67f87c7` | 26 Nov 2026 23:07 | Remove files not needed in the repository (kept locally): working notes, report build script, template sample tests |
 
 ## Push history (from this computer, newest first)
 
 | Pushed commit | Date and time |
 |---|---|
+| `67f87c7` | 26 Nov 2026 23:07 |
+| `0219d64` | 26 Nov 2026 22:59 |
 | `e4df0a8` | 26 Nov 2026 22:59 |
 | `06a36d7` | 26 Nov 2026 12:20 |
 | `114a3b5` | 26 Nov 2026 12:20 |
