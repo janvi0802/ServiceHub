@@ -92,7 +92,7 @@ Blocked users cannot write anything.
 | `docs/CODE_GUIDE.md` | How to read the code: every file and every workflow |
 | `docs/REPORT_KIT.md` | Diagrams, future scope and viva questions |
 | `docs/TEST_SCRIPT.md` | Two-phone test script (163 test cases) |
-| `docs/GIT_HISTORY.md` | Commit and push history (proof of progress) |
+| `docs/GIT_HISTORY.md`, `docs/GITHUB_HISTORY.pdf` | Commit and push history (proof of progress) |
 | `HOW_TO_TEST.md` | Beginner guide to install, run and test the app |
 | `PROGRESS.md` | What was built in each phase |
 | `build.gradle.kts`, `gradle/`, `gradlew*` | Build setup (Gradle) |
