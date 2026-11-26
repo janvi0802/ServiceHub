@@ -21,3 +21,9 @@ local.properties
 
 # Word lock files
 ~$*
+
+# Kept on this computer only (not part of the submission)
+/CLAUDE.md
+/docs/report_assets/make_report.py
+/app/src/test/java/com/example/servicehub/ExampleUnitTest.kt
+/app/src/androidTest/
