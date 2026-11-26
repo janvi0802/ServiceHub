@@ -1,0 +1,62 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff}</style></head><body>
+<svg width="1100" height="760" xmlns="http://www.w3.org/2000/svg" font-family="Times New Roman" font-size="15">
+<defs><style>.e{fill:#fff;stroke:#1f2430;stroke-width:1.6}.h{fill:#dfe5f7;stroke:#1f2430;stroke-width:1.6}.t{font-weight:bold;font-size:17px}.l{stroke:#1f2430;stroke-width:1.5;fill:none}.c{font-size:14px;font-weight:bold;fill:#2340c8}</style></defs>
+<!-- USERS -->
+<rect class="h" x="40" y="40" width="200" height="32"/><text class="t" x="140" y="62" text-anchor="middle">USERS</text>
+<rect class="e" x="40" y="72" width="200" height="130"/>
+<text x="52" y="94">PK  id</text><text x="52" y="116">name, email, phone</text><text x="52" y="138">role</text><text x="52" y="160">area, address</text><text x="52" y="182">isBlocked</text>
+<!-- PROVIDERS -->
+<rect class="h" x="40" y="330" width="200" height="32"/><text class="t" x="140" y="352" text-anchor="middle">PROVIDERS</text>
+<rect class="e" x="40" y="362" width="200" height="152"/>
+<text x="52" y="384">PK,FK  id (= user id)</text><text x="52" y="406">FK  categoryId</text><text x="52" y="428">area, experience</text><text x="52" y="450">approvalStatus</text><text x="52" y="472">isAvailable</text><text x="52" y="494">ratingAvg, jobsCompleted</text>
+<!-- CATEGORIES -->
+<rect class="h" x="40" y="600" width="200" height="32"/><text class="t" x="140" y="622" text-anchor="middle">CATEGORIES</text>
+<rect class="e" x="40" y="632" width="200" height="88"/>
+<text x="52" y="654">PK  id</text><text x="52" y="676">name, icon</text><text x="52" y="698">isActive</text>
+<!-- BOOKINGS -->
+<rect class="h" x="440" y="240" width="230" height="32"/><text class="t" x="555" y="262" text-anchor="middle">BOOKINGS</text>
+<rect class="e" x="440" y="272" width="230" height="240"/>
+<text x="452" y="294">PK  id</text><text x="452" y="316">FK  customerId</text><text x="452" y="338">FK  providerId</text><text x="452" y="360">FK  serviceId</text><text x="452" y="382">date, timeSlot</text><text x="452" y="404">status, startPin</text><text x="452" y="426">totalAmount, discount</text><text x="452" y="448">paymentMode</text><text x="452" y="470">paymentStatus</text><text x="452" y="492">FK  couponCode</text>
+<!-- SERVICES -->
+<rect class="h" x="440" y="600" width="230" height="32"/><text class="t" x="555" y="622" text-anchor="middle">SERVICES</text>
+<rect class="e" x="440" y="632" width="230" height="88"/>
+<text x="452" y="654">PK  id,  FK  categoryId</text><text x="452" y="676">name, price, duration</text><text x="452" y="698">isActive</text>
+<!-- REVIEWS -->
+<rect class="h" x="850" y="40" width="210" height="32"/><text class="t" x="955" y="62" text-anchor="middle">REVIEWS</text>
+<rect class="e" x="850" y="72" width="210" height="88"/>
+<text x="862" y="94">PK,FK  bookingId</text><text x="862" y="116">FK  providerId</text><text x="862" y="138">rating, comment</text>
+<!-- SLOTS -->
+<rect class="h" x="850" y="200" width="210" height="32"/><text class="t" x="955" y="222" text-anchor="middle">SLOTS</text>
+<rect class="e" x="850" y="232" width="210" height="66"/>
+<text x="862" y="254">PK  provider_date_slot</text><text x="862" y="276">FK  bookingId</text>
+<!-- MESSAGES -->
+<rect class="h" x="850" y="340" width="210" height="32"/><text class="t" x="955" y="362" text-anchor="middle">MESSAGES (chat)</text>
+<rect class="e" x="850" y="372" width="210" height="66"/>
+<text x="862" y="394">PK  id,  FK  bookingId</text><text x="862" y="416">senderId, text</text>
+<!-- COMPLAINTS -->
+<rect class="h" x="850" y="480" width="210" height="32"/><text class="t" x="955" y="502" text-anchor="middle">COMPLAINTS</text>
+<rect class="e" x="850" y="512" width="210" height="66"/>
+<text x="862" y="534">PK  id,  FK  bookingId</text><text x="862" y="556">message, status</text>
+<!-- COUPONS -->
+<rect class="h" x="850" y="620" width="210" height="32"/><text class="t" x="955" y="642" text-anchor="middle">COUPONS</text>
+<rect class="e" x="850" y="652" width="210" height="66"/>
+<text x="862" y="674">PK  code</text><text x="862" y="696">type, value, minOrder</text>
+<!-- NOTIFICATIONS -->
+<rect class="h" x="280" y="40" width="200" height="32"/><text class="t" x="380" y="62" text-anchor="middle">NOTIFICATIONS</text>
+<rect class="e" x="280" y="72" width="200" height="66"/>
+<text x="292" y="94">PK  id,  FK  userId</text><text x="292" y="116">title, message, isRead</text>
+
+<!-- relations -->
+<path class="l" d="M240 120 H260 V100 H280"/><text class="c" x="244" y="116">1</text><text class="c" x="266" y="96">N</text>
+<path class="l" d="M240 150 H340 V300 H440"/><text class="c" x="246" y="146">1</text><text class="c" x="422" y="296">N</text><text x="290" y="230" font-size="13">books</text>
+<path class="l" d="M140 202 V330"/><text class="c" x="146" y="222">1</text><text class="c" x="146" y="326">1</text><text x="150" y="275" font-size="13">is a</text>
+<path class="l" d="M240 430 H440"/><text class="c" x="246" y="425">1</text><text class="c" x="422" y="425">N</text><text x="310" y="424" font-size="13">serves</text>
+<path class="l" d="M140 514 V600"/><text class="c" x="146" y="532">N</text><text class="c" x="146" y="596">1</text>
+<path class="l" d="M240 670 H440"/><text class="c" x="246" y="665">1</text><text class="c" x="422" y="665">N</text><text x="310" y="664" font-size="13">has</text>
+<path class="l" d="M555 600 V512"/><text class="c" x="561" y="596">1</text><text class="c" x="561" y="528">N</text><text x="565" y="560" font-size="13">for</text>
+<path class="l" d="M670 290 H760 V110 H850"/><text class="c" x="676" y="286">1</text><text class="c" x="834" y="106">1</text><text x="768" y="200" font-size="13">rated by</text>
+<path class="l" d="M670 320 H790 V265 H850"/><text class="c" x="676" y="316">1</text><text class="c" x="834" y="261">1</text>
+<path class="l" d="M670 400 H850"/><text class="c" x="676" y="396">1</text><text class="c" x="834" y="396">N</text>
+<path class="l" d="M670 450 H790 V545 H850"/><text class="c" x="676" y="446">1</text><text class="c" x="834" y="541">N</text>
+<path class="l" d="M670 490 H760 V685 H850"/><text class="c" x="676" y="508">N</text><text class="c" x="834" y="681">1</text>
+</svg></body></html>

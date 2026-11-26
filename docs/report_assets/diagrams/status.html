@@ -1,0 +1,25 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff}</style></head><body>
+<svg width="1100" height="400" xmlns="http://www.w3.org/2000/svg" font-family="Times New Roman" font-size="17">
+<defs>
+<marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1f2430"/></marker>
+<style>.s{stroke:#1f2430;stroke-width:1.6}.l{stroke:#1f2430;stroke-width:1.6;fill:none;marker-end:url(#a)}.n{font-size:14px}</style>
+</defs>
+<circle cx="30" cy="150" r="13" fill="#1f2430"/><line class="l" x1="43" y1="150" x2="78" y2="150"/>
+<rect class="s" x="80" y="125" width="150" height="50" rx="12" fill="#fde7cf"/><text x="155" y="156" text-anchor="middle">REQUESTED</text>
+<line class="l" x1="230" y1="150" x2="290" y2="150"/><text x="236" y="140" class="n">accept</text>
+<rect class="s" x="292" y="125" width="150" height="50" rx="12" fill="#dbe4fb"/><text x="367" y="156" text-anchor="middle">ACCEPTED</text>
+<line class="l" x1="442" y1="150" x2="502" y2="150"/><text x="447" y="140" class="n">PIN ok</text>
+<rect class="s" x="504" y="125" width="160" height="50" rx="12" fill="#e9defb"/><text x="584" y="156" text-anchor="middle">IN PROGRESS</text>
+<line class="l" x1="664" y1="150" x2="724" y2="150"/><text x="666" y="140" class="n">complete</text>
+<rect class="s" x="726" y="125" width="150" height="50" rx="12" fill="#d9f2df"/><text x="801" y="156" text-anchor="middle">COMPLETED</text>
+<line class="l" x1="876" y1="150" x2="936" y2="150"/><text x="880" y="140" class="n">paid</text>
+<rect class="s" x="938" y="125" width="130" height="50" rx="12" fill="#c8ecd2"/><text x="1003" y="156" text-anchor="middle">PAID</text>
+<!-- rejected -->
+<line class="l" x1="155" y1="175" x2="155" y2="278"/><text x="148" y="235" class="n" text-anchor="end">reject (provider)</text>
+<rect class="s" x="80" y="280" width="150" height="50" rx="12" fill="#f9d7d7"/><text x="155" y="311" text-anchor="middle">REJECTED</text>
+<!-- cancelled -->
+<path class="l" d="M200 175 V250 H330 V278"/><path class="l" d="M367 175 V278"/><text x="374" y="235" class="n">cancel</text>
+<rect class="s" x="292" y="280" width="150" height="50" rx="12" fill="#e6e6e6"/><text x="367" y="311" text-anchor="middle">CANCELLED</text>
+<!-- reschedule -->
+<path class="l" d="M330 125 V80 H170 V123"/><text x="190" y="72" class="n">reschedule (back to Requested)</text>
+</svg></body></html>

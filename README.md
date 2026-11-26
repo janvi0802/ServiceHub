@@ -80,9 +80,28 @@ completed or cash collected). Slots stop double booking. Earnings can only go up
 ratings stay 1–5, once per booking. Chat and notifications are limited to the people on that booking.
 Blocked users cannot write anything.
 
+## What this repository contains
+
+| Folder / file | What it is |
+|---|---|
+| `app/` | The Android app: Kotlin source code (`src/main/java`), screens, resources, and 50 logic tests (`src/test`) |
+| `admin-server/` | Small free Vercel server (Node.js): admin password change and push notifications |
+| `firestore.rules` | Firebase security rules (who can read / change what) |
+| `docs/PROJECT_REPORT.pdf` / `.docx` | Project report (college format) |
+| `docs/report_assets/` | Screenshots, college logo and diagrams used in the report (ER, activity, use case, status flow) |
+| `docs/CODE_GUIDE.md` | How to read the code: every file and every workflow |
+| `docs/REPORT_KIT.md` | Diagrams, future scope and viva questions |
+| `docs/TEST_SCRIPT.md` | Two-phone test script (163 test cases) |
+| `docs/GIT_HISTORY.md` | Commit and push history (proof of progress) |
+| `HOW_TO_TEST.md` | Beginner guide to install, run and test the app |
+| `PROGRESS.md` | What was built in each phase |
+| `build.gradle.kts`, `gradle/`, `gradlew*` | Build setup (Gradle) |
+
+Secret keys (`local.properties`, signing keys, the Firebase service account) are **not** in this repository.
+
 ## Documentation
 
-- [docs/PROJECT_REPORT.docx](docs/PROJECT_REPORT.docx) / [PDF](docs/PROJECT_REPORT.pdf) – the full project report
+- [docs/PROJECT_REPORT.pdf](docs/PROJECT_REPORT.pdf) ([Word version](docs/PROJECT_REPORT.docx)) – the project report (college format)
 - [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md) – how to read the code: every file and every workflow
 - [docs/REPORT_KIT.md](docs/REPORT_KIT.md) – diagrams, booking flow, future scope, viva questions
 - [docs/TEST_SCRIPT.md](docs/TEST_SCRIPT.md) – two-phone test script (163 cases)
