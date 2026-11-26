@@ -33,13 +33,15 @@ Live pages to screenshot for proof:
 | 21 | `6f0a330` | 25 Nov 2026 12:17 | UPI test payment (Razorpay test mode) and admin password change via free Vercel server |
 | 22 | `1ffc3f5` | 25 Nov 2026 17:22 | Payment step, redo PIN, cleaner home screens, 1-hour slot hold, coupons, booking chat, push notifications |
 | 23 | `114a3b5` | 26 Nov 2026 12:20 | Area fallback, push opens the right page, change email, offers list, extras total limit, rule fix; updated README, code guide, report kit and project report |
+| 24 | `06a36d7` | 26 Nov 2026 12:20 | Add GitHub commit and push history |
+| 25 | `e4df0a8` | 26 Nov 2026 22:59 | Project report in college format (Word + PDF) with diagrams and screenshots; README lists repository contents |
 
 ## Push history (from this computer, newest first)
 
-Each line is one `git push` to GitHub (`git reflog show origin/main`).
-
 | Pushed commit | Date and time |
 |---|---|
+| `e4df0a8` | 26 Nov 2026 22:59 |
+| `06a36d7` | 26 Nov 2026 12:20 |
 | `114a3b5` | 26 Nov 2026 12:20 |
 | `1ffc3f5` | 25 Nov 2026 17:22 |
 | `6f0a330` | 25 Nov 2026 12:41 |
@@ -60,5 +62,3 @@ Each line is one `git push` to GitHub (`git reflog show origin/main`).
 | `5ef7daa` | 17 Nov 2026 12:48 |
 | `10bf31f` | 17 Nov 2026 12:45 |
 | `3c272a4` | 04 Nov 2026 17:45 |
-
-Regenerate this file any time: run the commands `git log --reverse --date=format:"%d %b %Y %H:%M" --pretty=format:"%h | %ad | %s"` and `git reflog show origin/main`.
