@@ -47,6 +47,8 @@ object Routes {
     const val FAVORITES = "favorites"
     const val HELP = "help"
     const val BOOK_SERVICE = "book_service"
+    const val BOOK_SERVICE_IN = "book_service/{categoryId}"
+    fun bookServiceIn(categoryId: String) = "book_service/$categoryId"
     const val ADMIN_COUPONS = "admin_coupons"
     const val CHAT = "chat/{bookingId}"
     fun chat(bookingId: String) = "chat/$bookingId"

@@ -185,6 +185,20 @@ class LogicTest {
     }
 
     @Test
+    fun offers_bestSavingFirstThenNeedMore() {
+        val list = listOf(
+            com.example.servicehub.data.model.Coupon(code = "BIG200", type = "FLAT", value = 200, minOrder = 999),
+            com.example.servicehub.data.model.Coupon(code = "FIRST50", type = "FLAT", value = 50, minOrder = 199),
+            com.example.servicehub.data.model.Coupon(code = "SAVE10", type = "PERCENT", value = 10, maxDiscount = 100),
+            com.example.servicehub.data.model.Coupon(code = "OFF", type = "FLAT", value = 500, isActive = false),          // switched off: not shown
+        )
+        val ranked = com.example.servicehub.data.model.rankOffers(list, 348)
+        assertEquals(listOf("FIRST50", "SAVE10", "BIG200"), ranked.map { it.coupon.code })
+        assertEquals(651, ranked.last().addMore)            // 999 - 348
+        assertEquals(false, ranked.last().usable)
+    }
+
+    @Test
     fun slotHold_bookedOnHoldOrFreeAfterOneHour() {
         val now = 1_000_000_000L
         val hold = com.example.servicehub.data.model.SlotInfo(heldUntil = now + 60_000)

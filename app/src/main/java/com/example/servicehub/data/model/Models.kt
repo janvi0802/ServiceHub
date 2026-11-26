@@ -167,6 +167,24 @@ fun couponDiscount(coupon: Coupon, amount: Int): Result<Int> = when {
     }
 }
 
+/** One coupon as shown in "Offers for you": its saving on this bill, or how much more is needed. */
+data class Offer(val coupon: Coupon, val saving: Int, val addMore: Int) {
+    val usable: Boolean get() = addMore == 0 && saving > 0
+}
+
+/**
+ * The switched-on coupons for a bill of [amount], best first:
+ * usable ones by biggest saving, then the ones that need a bigger bill (smallest gap first).
+ * Pure function, so it is unit-tested.
+ */
+fun rankOffers(coupons: List<Coupon>, amount: Int): List<Offer> =
+    coupons.filter { it.isActive }
+        .map { c ->
+            val saving = couponDiscount(c, amount).getOrDefault(0)
+            Offer(c, saving, addMore = (c.minOrder - amount).coerceAtLeast(0))
+        }
+        .sortedWith(compareByDescending<Offer> { it.usable }.thenByDescending { it.saving }.thenBy { it.addMore })
+
 /** bookings/{bookingId}/messages/{id}: one chat message between the customer and the provider. */
 data class ChatMessage(
     val id: String = "",

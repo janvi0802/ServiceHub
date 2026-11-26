@@ -45,6 +45,45 @@ object AuthRepository {
         auth.signOut()
     }
 
+    /**
+     * Change the login email (free, Firebase does it):
+     *  1. Check the current password again (Firebase asks for a fresh login before email changes).
+     *  2. Firebase emails a link to the NEW address. Only after the user taps it does the login email change,
+     *     so nobody can move an account to an email they do not own.
+     */
+    suspend fun changeEmail(newEmail: String, currentPassword: String) {
+        val user = auth.currentUser ?: throw Exception("Please log in again.")
+        val email = newEmail.trim()
+        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) throw Exception("Please enter a valid email.")
+        if (email.equals(user.email, ignoreCase = true)) throw Exception("That is already your email.")
+        try {
+            val credential = com.google.firebase.auth.EmailAuthProvider.getCredential(user.email.orEmpty(), currentPassword)
+            user.reauthenticate(credential).await()
+        } catch (e: Exception) {
+            throw Exception("Wrong password. Please try again.")
+        }
+        try {
+            user.verifyBeforeUpdateEmail(email).await()
+        } catch (e: com.google.firebase.auth.FirebaseAuthUserCollisionException) {
+            throw Exception("Another account already uses this email.")
+        } catch (e: Exception) {
+            throw Exception("Could not send the link. Check the email and your internet.")
+        }
+    }
+
+    /**
+     * After the user tapped the link, Firebase changed the login email. Copy it to users/{uid}.email
+     * too, so the admin lists show the new one. Returns the email now in use.
+     */
+    suspend fun syncEmail(): String? {
+        val user = auth.currentUser ?: return null
+        runCatching { user.reload().await() }   // fetch the latest email from Firebase
+        val email = user.email ?: return null
+        com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users").document(user.uid)
+            .update("email", email).await()
+        return email
+    }
+
     /** Firebase emails a link to choose a new password (free, no server code needed). */
     suspend fun sendPasswordReset(email: String) {
         auth.sendPasswordResetEmail(email).await()

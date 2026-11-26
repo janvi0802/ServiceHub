@@ -49,7 +49,7 @@ class PushService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val title = message.notification?.title ?: message.data["title"] ?: return
         val body = message.notification?.body ?: message.data["body"].orEmpty()
-        Push.show(this, title, body)
+        Push.show(this, title, body, message.data["bookingId"].orEmpty(), message.data["type"].orEmpty())
     }
 }
 
@@ -103,7 +103,7 @@ object Push {
     }
 
     /** Shows one notification in the phone's notification bar; tapping it opens the app. */
-    fun show(context: Context, title: String, body: String) {
+    fun show(context: Context, title: String, body: String, bookingId: String = "", type: String = "") {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
@@ -115,8 +115,14 @@ object Push {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
 
+        // Tapping opens the app ON the right screen (see PushLink): the booking and the kind of page
+        val tap = Intent(context, MainActivity::class.java).apply {
+            putExtra(PushLink.EXTRA_BOOKING, bookingId)
+            putExtra(PushLink.EXTRA_TYPE, type)
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
+            context, bookingId.hashCode(), tap, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -128,4 +134,27 @@ object Push {
             .build()
         NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
     }
+}
+
+/**
+ * Which screen to open after tapping a push: the booking it is about and its kind:
+ * "chat" -> the chat, "booking" -> booking / job details, "" -> just the app.
+ * MainActivity fills [pending]; AppNavHost opens the screen once someone is logged in.
+ */
+object PushLink {
+    const val EXTRA_BOOKING = "bookingId"   // same names as the push "data" sent by the server,
+    const val EXTRA_TYPE = "type"           // so a push tapped while the app was closed works too
+    const val TYPE_CHAT = "chat"
+
+    val pending = kotlinx.coroutines.flow.MutableStateFlow<Pair<String, String>?>(null)
+
+    /** Reads the extras of the Intent that opened the app (null-safe; ignored if no booking). */
+    fun take(intent: Intent?) {
+        val bookingId = intent?.getStringExtra(EXTRA_BOOKING).orEmpty()
+        if (bookingId.isNotBlank()) pending.value = bookingId to intent?.getStringExtra(EXTRA_TYPE).orEmpty()
+        intent?.removeExtra(EXTRA_BOOKING)   // so turning the phone does not open it again
+    }
+
+    /** "New message from …" opens the chat; everything else about a booking opens its details. */
+    fun typeForTitle(title: String) = if (title.startsWith("New message", ignoreCase = true)) TYPE_CHAT else "booking"
 }

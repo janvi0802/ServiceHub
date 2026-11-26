@@ -21,6 +21,10 @@ object CouponRepository {
     fun all(): Flow<List<Coupon>> =
         coupons.liveList(Coupon::class.java).map { list -> list.sortedByDescending { it.createdAt } }
 
+    /** Customer: coupons the admin has switched on, live (for "Offers for you"). */
+    fun active(): Flow<List<Coupon>> =
+        coupons.whereEqualTo("isActive", true).liveList(Coupon::class.java)
+
     /**
      * Checks [code] against a bill of [amount] and returns the coupon and its discount.
      * Throws a BookingException with a friendly message if it cannot be used.

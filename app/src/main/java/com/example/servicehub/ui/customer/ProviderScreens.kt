@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
@@ -122,6 +123,8 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     /** "Available today" chip, for urgent needs: hides providers whose weekly day off is today. */
     val onlyToday = MutableStateFlow(false)
     val service = MutableStateFlow<Service?>(null)
+    /** Set when the customer's own area had nobody, so we show all areas instead (with this note). */
+    val fallbackNote = MutableStateFlow<String?>(null)
 
     /** Bookable providers of this category, filtered by area (and today) and sorted. null = loading. */
     val providers: StateFlow<List<Provider>?> =
@@ -140,7 +143,14 @@ class ProviderListViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             val myArea = runCatching {
                 UserRepository.getUser(AuthRepository.currentUserId.orEmpty())?.area
             }.getOrNull()
-            if (!myArea.isNullOrBlank() && myArea in FixedData.areas) selectedArea.value = myArea
+            if (!myArea.isNullOrBlank() && myArea in FixedData.areas) {
+                // Nobody in my area? Then start with ALL areas instead of an empty list.
+                val inMyArea = runCatching {
+                    ProviderRepository.bookableProviders(categoryId).first().any { it.area == myArea }
+                }.getOrDefault(true)
+                if (inMyArea) selectedArea.value = myArea
+                else fallbackNote.value = "No professionals in $myArea yet – showing all areas."
+            }
         }
     }
 }
@@ -160,6 +170,7 @@ fun ProviderListScreen(
     val sort by viewModel.selectedSort.collectAsState()
     val onlyToday by viewModel.onlyToday.collectAsState()
     val service by viewModel.service.collectAsState()
+    val fallbackNote by viewModel.fallbackNote.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Choose a provider", onBack)
@@ -184,6 +195,13 @@ fun ProviderListScreen(
                     label = { Text(option) },
                 )
             }
+        }
+        // Shown once when the customer's own area had nobody (hidden after they pick an area)
+        if (fallbackNote != null && area == ALL_AREAS) {
+            com.example.servicehub.ui.components.InfoBanner(
+                Icons.Filled.LocationOn, fallbackNote!!, StatusRequested,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
         }
         // Sort chips (scroll sideways on small phones)
         Row(

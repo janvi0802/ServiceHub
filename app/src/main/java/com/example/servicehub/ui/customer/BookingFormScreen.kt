@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.example.servicehub.ui.theme.StatusRequested
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -119,6 +120,12 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         .catch { emit(emptyMap()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
+    /** Coupons the admin switched on, live (shown as "Offers for you"). */
+    val offers: StateFlow<List<com.example.servicehub.data.model.Coupon>> =
+        com.example.servicehub.data.repository.CouponRepository.active()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init { load() }
 
     /** Loads the customer (for the saved address), the provider and the service. */
@@ -176,6 +183,12 @@ class BookingFormViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 _uiState.update { it.copy(couponCode = "", discount = 0, couponChecking = false, couponMessage = BookingRepository.friendlyError(e)) }
             }
         }
+    }
+
+    /** Tapped "Apply" on an offer: same check as typing the code. */
+    fun applyOffer(code: String) {
+        _uiState.update { it.copy(couponInput = code) }
+        applyCoupon()
     }
 
     fun removeCoupon() = _uiState.update { it.copy(couponCode = "", discount = 0, couponInput = "", couponMessage = null) }
@@ -249,6 +262,7 @@ fun BookingFormScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val busy by viewModel.busySlots.collectAsState()
+    val offers by viewModel.offers.collectAsState()
 
     LaunchedEffect(state.createdBookingId) {
         state.createdBookingId?.let(onBooked)
@@ -275,6 +289,7 @@ fun BookingFormScreen(
             ReviewSummary(
                 state, service, provider, onEdit = viewModel::backToEdit, onPaymentMode = viewModel::onPaymentModeChange,
                 onCouponInput = viewModel::onCouponInput, onApplyCoupon = viewModel::applyCoupon, onRemoveCoupon = viewModel::removeCoupon,
+                offers = offers, onApplyOffer = viewModel::applyOffer,
                 modifier = Modifier.weight(1f),
             )
         } else Column(
@@ -374,6 +389,16 @@ fun BookingFormScreen(
                 }
             }
 
+            // Tell the customer offers exist before they reach the review step
+            val usableOffers = com.example.servicehub.data.model.rankOffers(offers, service.price + FixedData.VISIT_FEE).count { it.usable }
+            if (usableOffers > 0) {
+                InfoBanner(
+                    icon = androidx.compose.material.icons.Icons.Filled.LocalOffer,
+                    color = com.example.servicehub.ui.theme.StatusCompleted,
+                    text = "$usableOffers offer${if (usableOffers > 1) "s" else ""} available – apply on the next step",
+                )
+            }
+
             // Price summary
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp)) {
@@ -424,6 +449,8 @@ private fun ReviewSummary(
     onCouponInput: (String) -> Unit,
     onApplyCoupon: () -> Unit,
     onRemoveCoupon: () -> Unit,
+    offers: List<com.example.servicehub.data.model.Coupon>,
+    onApplyOffer: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -475,6 +502,17 @@ private fun ReviewSummary(
             }
             Caption(FixedData.PRICE_NOTE, modifier = Modifier.padding(top = 6.dp))
         }
+        // 3. Offers for you: every switched-on coupon, best saving first, one tap to apply
+        val ranked = com.example.servicehub.data.model.rankOffers(offers, service.price + FixedData.VISIT_FEE)
+        if (ranked.isNotEmpty() && state.couponCode.isEmpty()) {
+            com.example.servicehub.ui.components.SectionLabel("Offers for you")
+            AppCard {
+                ranked.forEachIndexed { index, offer ->
+                    if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    OfferRow(offer, best = index == 0 && offer.usable, enabled = !state.couponChecking) { onApplyOffer(offer.coupon.code) }
+                }
+            }
+        }
         Caption("Nothing is booked yet. Tap Confirm booking to send the request to ${provider.name}.")
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
@@ -495,4 +533,24 @@ private fun SummaryLine(icon: androidx.compose.ui.graphics.vector.ImageVector, m
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+}
+
+/** One offer: code, what it gives, and Apply (or "Add ₹X more to use", greyed out). */
+@Composable
+private fun OfferRow(offer: com.example.servicehub.data.model.Offer, best: Boolean, enabled: Boolean, onApply: () -> Unit) {
+    val color = if (offer.usable) com.example.servicehub.ui.theme.StatusCompleted else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        com.example.servicehub.ui.components.SoftIcon(Icons.Filled.LocalOffer, color, size = 32.dp, iconSize = 18.dp)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(offer.coupon.code, style = MaterialTheme.typography.titleSmall)
+                if (best) Text("  BEST OFFER", style = MaterialTheme.typography.labelSmall, color = com.example.servicehub.ui.theme.StatusCompleted)
+            }
+            Caption(
+                if (offer.usable) "Save ₹${offer.saving} · ${com.example.servicehub.ui.admin.couponSummary(offer.coupon)}"
+                else "Add ₹${offer.addMore} more to use · ${com.example.servicehub.ui.admin.couponSummary(offer.coupon)}"
+            )
+        }
+        TextButton(onClick = onApply, enabled = enabled && offer.usable) { Text("Apply") }
+    }
 }

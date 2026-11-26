@@ -38,8 +38,13 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
-/** All services customers can book (hidden ones left out), live. */
-class BookServiceViewModel : ViewModel() {
+/**
+ * All services customers can book (hidden ones left out), live.
+ * [startCategoryId] comes from the route when a category tile was tapped ("" = choose yourself).
+ */
+class BookServiceViewModel(savedStateHandle: androidx.lifecycle.SavedStateHandle) : ViewModel() {
+    val startCategoryId: String = savedStateHandle["categoryId"] ?: ""
+
     val services: StateFlow<List<Service>> = ServiceRepository.allServices()
         .map { list -> list.filter { it.isActive }.sortedBy { it.price } }
         .catch { emit(emptyList()) }
@@ -64,7 +69,8 @@ fun BookServiceScreen(
     val categories = allCategories.filter { it.isActive }
     val services by viewModel.services.collectAsState()
 
-    var categoryId by rememberSaveable { mutableStateOf("") }
+    // A category tile on Home starts the form with that category already chosen
+    var categoryId by rememberSaveable { mutableStateOf(viewModel.startCategoryId) }
     var serviceId by rememberSaveable { mutableStateOf("") }
 
     val category = categories.firstOrNull { it.id == categoryId }

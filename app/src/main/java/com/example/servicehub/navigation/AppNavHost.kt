@@ -157,6 +157,16 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
         runCatching { com.example.servicehub.push.Push.registerThisPhone() }
     }
 
+    // Opened by tapping a push: once someone is logged in, go straight to that booking's page
+    // (chat for a message; booking details for a customer; job details for a provider).
+    val pushLink by com.example.servicehub.push.PushLink.pending.collectAsState()
+    LaunchedEffect(pushLink, role) {
+        val link = pushLink ?: return@LaunchedEffect
+        val route = linkRoute(role, link.first, link.second) ?: return@LaunchedEffect
+        com.example.servicehub.push.PushLink.pending.value = null
+        navController.navigate(route)
+    }
+
     // Watch the logged-in person's own account: if the admin blocks them, log out at once.
     val meFlow = remember(userId) {
         if (userId == null) flowOf(null) else UserRepository.liveUser(userId).catch { emit(null) }
@@ -250,10 +260,10 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                 HelpScreen(isProvider = role == Roles.PROVIDER, onBack = { navController.popBackStack() })
             }
             composable(Routes.NOTIFICATIONS) {
-                NotificationsScreen(onOpenBooking = { bookingId ->
-                    // Providers open the job screen, customers the booking screen.
-                    val route = if (role == Roles.PROVIDER) Routes.jobDetail(bookingId) else Routes.bookingDetail(bookingId)
-                    navController.navigate(route)
+                NotificationsScreen(onOpenBooking = { bookingId, title ->
+                    // Same rule as tapping a push: messages open the chat, the rest the booking / job
+                    linkRoute(role, bookingId, com.example.servicehub.push.PushLink.typeForTitle(title))
+                        ?.let { navController.navigate(it) }
                 })
             }
 
@@ -261,7 +271,8 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.CUSTOMER_HOME) {
                 CustomerHomeScreen(
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
-                    onOpenCategory = { categoryId -> navController.navigate(Routes.categoryServices(categoryId)) },
+                    // Same guided form as "Book a service", with this category already chosen
+                    onOpenCategory = { categoryId -> navController.navigate(Routes.bookServiceIn(categoryId)) },
                     onOpenBooking = { id -> navController.navigate(Routes.bookingDetail(id)) },
                     onRate = { id -> navController.navigate(Routes.rateReview(id)) },
                     // Quick picks open the service details page (what's included + Book now)
@@ -270,6 +281,14 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
                         navController.navigate(Routes.providerDetail(providerId, serviceId))
                     },
                     onBookService = { navController.navigate(Routes.BOOK_SERVICE) },
+                )
+            }
+            composable(Routes.BOOK_SERVICE_IN) {
+                com.example.servicehub.ui.customer.BookServiceScreen(
+                    onBack = { navController.popBackStack() },
+                    onChooseProfessional = { categoryId, serviceId ->
+                        navController.navigate(Routes.providerList(categoryId, serviceId))
+                    },
                 )
             }
             composable(Routes.BOOK_SERVICE) {
@@ -450,6 +469,18 @@ private fun SessionNavHost(onLoggedOut: () -> Unit) {
             composable(Routes.ADMIN_COMPLAINTS) { AdminComplaintsScreen(onBack = { navController.popBackStack() }) }
         }
     }
+}
+
+/**
+ * The screen for a notification about [bookingId]: the chat for a message, otherwise booking
+ * details (customer) or job details (provider). null = nobody logged in yet / admin.
+ */
+private fun linkRoute(role: String?, bookingId: String, type: String): String? = when {
+    bookingId.isBlank() -> null
+    role != Roles.CUSTOMER && role != Roles.PROVIDER -> null
+    type == com.example.servicehub.push.PushLink.TYPE_CHAT -> Routes.chat(bookingId)
+    role == Roles.PROVIDER -> Routes.jobDetail(bookingId)
+    else -> Routes.bookingDetail(bookingId)
 }
 
 /**

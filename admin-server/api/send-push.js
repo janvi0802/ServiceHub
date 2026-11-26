@@ -71,7 +71,11 @@ module.exports = async (req, res) => {
     await fb.messaging().send({
       token: fcmToken,
       notification: { title: n.title, body: n.message },
-      data: { bookingId: n.bookingId || "" },
+      // bookingId + type tell the app which screen to open when the push is tapped
+      data: {
+        bookingId: n.bookingId || "",
+        type: (n.title || "").startsWith("New message") ? "chat" : (n.bookingId ? "booking" : ""),
+      },
       android: { priority: "high", notification: { channelId: "bookings" } },
     });
     return res.status(200).json({ ok: true, sent: true });

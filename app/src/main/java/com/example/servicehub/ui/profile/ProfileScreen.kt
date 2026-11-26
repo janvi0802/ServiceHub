@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
@@ -104,6 +105,7 @@ fun ProfileScreen(
 
     var showLogout by remember { mutableStateOf(false) }
     var showAddAddress by remember { mutableStateOf(false) }
+    var showChangeEmail by remember { mutableStateOf(false) }
     val context = LocalContext.current
     // App version, read from the installed app (versionName in app/build.gradle.kts)
     val version = remember {
@@ -204,6 +206,7 @@ fun ProfileScreen(
                 if (!state.isProvider) {
                     ListRow(Icons.Filled.Favorite, "My favourites", "Professionals you saved", onClick = onOpenFavorites)
                 }
+                ListRow(Icons.Filled.Email, "Change email", state.user?.email.orEmpty(), onClick = { showChangeEmail = true })
                 ListRow(Icons.AutoMirrored.Filled.HelpOutline, "Help & support", "Answers to common questions", onClick = onOpenHelp)
                 ListRow(
                     Icons.AutoMirrored.Filled.Logout, "Log out", null,
@@ -215,6 +218,12 @@ fun ProfileScreen(
         }
     }
 
+    if (showChangeEmail) {
+        ChangeEmailDialog(
+            onSend = { email, password -> viewModel.changeEmail(email, password) { showChangeEmail = false } },
+            onDismiss = { showChangeEmail = false },
+        )
+    }
     if (showAddAddress) {
         AddAddressDialog(
             onSave = { label, address ->
@@ -237,4 +246,30 @@ fun ProfileScreen(
             onDismiss = { showLogout = false },
         )
     }
+}
+
+/** New email + current password. Firebase then emails a confirmation link to the new address. */
+@Composable
+private fun ChangeEmailDialog(onSend: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var sending by remember { mutableStateOf(false) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Change email") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Caption("We will email a link to the new address. Your email changes only after you open it.")
+                TextInput(email, { email = it.trim() }, "New email", keyboardType = KeyboardType.Email)
+                TextInput(password, { password = it }, "Current password", isPassword = true)
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { sending = true; onSend(email, password) },
+                enabled = email.contains("@") && password.length >= 6 && !sending,
+            ) { Text(if (sending) "Sending..." else "Send link") }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Back") } },
+    )
 }

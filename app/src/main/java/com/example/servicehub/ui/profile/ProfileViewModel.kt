@@ -39,6 +39,8 @@ class ProfileViewModel : ViewModel() {
         val uid = AuthRepository.currentUserId ?: return
         viewModelScope.launch {
             try {
+                // If the user changed their email (tapped the link), copy the new one first
+                runCatching { AuthRepository.syncEmail() }
                 val user = UserRepository.getUser(uid)
                 // Providers also have a bio and experience in providers/{uid}
                 val provider = if (user?.role == Roles.PROVIDER) UserRepository.getProvider(uid) else null
@@ -111,6 +113,18 @@ class ProfileViewModel : ViewModel() {
             _uiState.update { it.copy(user = user.copy(savedAddresses = list), message = successText) }
         } catch (e: Exception) {
             _uiState.update { it.copy(message = saveErrorMessage(e)) }
+        }
+    }
+
+    /** Sends the "confirm your new email" link. [onDone] closes the popup. */
+    fun changeEmail(newEmail: String, password: String, onDone: () -> Unit) = viewModelScope.launch {
+        try {
+            AuthRepository.changeEmail(newEmail, password)
+            _uiState.update { it.copy(message = "Link sent to ${newEmail.trim()}. Open it to confirm; then log in with the new email.") }
+            onDone()
+        } catch (e: Exception) {
+            _uiState.update { it.copy(message = e.message ?: "Could not change email.") }
+            onDone()
         }
     }
 

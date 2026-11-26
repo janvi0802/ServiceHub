@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ServiceHub – Project Report</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11.5pt; line-height: 1.45; color: #1f2430; }
+  h1 { font-size: 22pt; color: #2340c8; margin: 0 0 6pt; }
+  h2 { font-size: 15pt; color: #2340c8; border-bottom: 1.5pt solid #2340c8; padding-bottom: 3pt; margin: 22pt 0 8pt; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; color: #1f2430; margin: 14pt 0 5pt; page-break-after: avoid; }
+  p { margin: 0 0 7pt; }
+  table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt; page-break-inside: auto; }
+  th, td { border: 0.75pt solid #b9c1d6; padding: 4pt 6pt; vertical-align: top; font-size: 10.5pt; }
+  th { background: #e8ecfa; text-align: left; }
+  tr { page-break-inside: avoid; }
+  code { font-family: Consolas, monospace; font-size: 10pt; background: #f1f3f8; padding: 0 2pt; }
+  .cover { text-align: center; padding-top: 120pt; page-break-after: always; }
+  .cover .sub { font-size: 14pt; color: #444; }
+  .cover table { width: 70%; margin: 40pt auto 0; }
+  .cover td { border: none; font-size: 12pt; padding: 4pt; text-align: left; }
+  .box { border: 1pt solid #2340c8; background: #f4f6fd; padding: 6pt 8pt; text-align: center; font-size: 10.5pt; }
+  .diagram td { border: none; text-align: center; vertical-align: middle; padding: 3pt; }
+  .arrow { color: #2340c8; font-size: 14pt; }
+  .note { background: #fff8e6; border-left: 3pt solid #f0a500; padding: 5pt 8pt; margin: 6pt 0 10pt; }
+  .placeholder { border: 1pt dashed #999; color: #777; text-align: center; padding: 30pt 6pt; margin: 6pt 0; }
+  .pb { page-break-before: always; }
+  ul, ol { margin: 0 0 8pt 18pt; padding: 0; }
+  li { margin-bottom: 2pt; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ COVER -->
+<div class="cover">
+  <h1>ServiceHub</h1>
+  <p class="sub">An Android application for booking local home services</p>
+  <p class="sub">Individual Academic Project Report</p>
+  <table>
+    <tr><td><b>Student name</b></td><td>[Your full name]</td></tr>
+    <tr><td><b>Enrolment / Roll no.</b></td><td>[Your number]</td></tr>
+    <tr><td><b>Course / Semester</b></td><td>[Course, semester]</td></tr>
+    <tr><td><b>College</b></td><td>[College name]</td></tr>
+    <tr><td><b>Project guide</b></td><td>[Guide name]</td></tr>
+    <tr><td><b>GitHub repository</b></td><td>https://github.com/janvi0802/ServiceHub</td></tr>
+    <tr><td><b>Submission date</b></td><td>[Date]</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ CONTENTS -->
+<h2>Contents</h2>
+<ol>
+  <li>Abstract</li>
+  <li>Introduction and problem statement</li>
+  <li>Objectives and scope</li>
+  <li>Requirements (hardware, software, functional, non-functional)</li>
+  <li>Technology stack and why it was chosen</li>
+  <li>System design: architecture, database, use cases, status flow</li>
+  <li>Modules and features (Customer, Provider, Admin)</li>
+  <li>Key workflows step by step</li>
+  <li>Implementation details (code structure)</li>
+  <li>Security</li>
+  <li>Testing</li>
+  <li>Screenshots</li>
+  <li>Project progress and GitHub history</li>
+  <li>Limitations and future scope</li>
+  <li>Conclusion</li>
+  <li>References</li>
+</ol>
+
+<!-- ============================================================ 1 -->
+<h2>1. Abstract</h2>
+<p>ServiceHub is an Android app that connects customers with verified local service professionals such as plumbers,
+electricians, cleaners, AC technicians, carpenters and painters. Customers see clear fixed prices, book a professional
+in their area for a chosen date and time slot, and follow the job live on their phone. Providers receive requests,
+accept or reject them, start the job with a 4-digit PIN given by the customer, add any extra parts, collect payment and
+track their earnings. An admin approves providers, manages services, categories and coupons, handles complaints and can
+block users.</p>
+<p>The app is written in <b>Kotlin with Jetpack Compose</b> and follows the <b>MVVM</b> architecture. All data is stored
+in <b>Firebase Cloud Firestore</b>, so two phones see every change live within about a second. Login uses <b>Firebase
+Authentication</b>. UPI payments are demonstrated with <b>Razorpay in test mode</b> (no real money), push notifications use
+<b>Firebase Cloud Messaging</b>, and a tiny free <b>Vercel</b> server performs the two actions that a phone app must never
+do itself (setting another user's password and sending pushes). Everything runs on free plans.</p>
+
+<!-- ============================================================ 2 -->
+<h2>2. Introduction and problem statement</h2>
+<p>Finding a reliable local service provider is unorganised. People rely on word of mouth, cannot compare prices before
+calling, do not know whether the person is trustworthy, and cannot track a request after making it. Providers, on the
+other hand, have very little digital visibility and depend on a few regular customers.</p>
+<p><b>Problem:</b> there is no simple, trustworthy way for a household to find, book and track a nearby professional at a
+known price, and no simple way for a professional to get and manage jobs.</p>
+<p><b>Solution:</b> ServiceHub gives three kinds of users one shared app:</p>
+<ul>
+  <li><b>Customers</b> browse services with fixed prices, choose an admin-verified professional in their area, book a slot,
+  share a start PIN on arrival, pay by cash or UPI after the job, rate it, and get a free redo within 7 days if needed.</li>
+  <li><b>Providers</b> manage requests, today's jobs, payments to collect and earnings in one place.</li>
+  <li><b>The admin</b> keeps the platform trustworthy: approves providers, controls prices and offers, resolves complaints.</li>
+</ul>
+
+<!-- ============================================================ 3 -->
+<h2>3. Objectives and scope</h2>
+<h3>Objectives</h3>
+<ol>
+  <li>Build a real, working Android app (not a mock-up) that works on two real phones at the same time.</li>
+  <li>Role-based app: one app, three homes (Customer, Provider, Admin), chosen automatically after login.</li>
+  <li>Safe booking: no double booking, a start PIN, a clear status lifecycle and live tracking.</li>
+  <li>Transparent money: fixed prices, a visible visit fee, itemised extras, a receipt, and earnings that count only money received.</li>
+  <li>Use only free services (Firebase Spark plan, Vercel Hobby, Razorpay test mode).</li>
+  <li>Keep the code simple and well commented so every part can be explained.</li>
+</ol>
+<h3>Scope (included)</h3>
+<p>Registration and login, provider approval, service catalogue and search, provider list with area filter, booking with
+slots, live status tracking, start PIN, cancel and reschedule, payment step (cash / UPI test), coupons, ratings and
+reviews, receipt, 7-day redo guarantee, chat, in-app and push notifications, complaints, admin dashboard and controls.</p>
+<h3>Out of scope (future)</h3>
+<p>Real-money payments, photo uploads, live GPS tracking, multiple languages, dark mode (see section 14).</p>
+
+<!-- ============================================================ 4 -->
+<h2>4. Requirements</h2>
+<h3>4.1 Hardware and software used</h3>
+<table>
+  <tr><th>Item</th><th>Used in this project</th></tr>
+  <tr><td>Development computer</td><td>Windows 11, 8 GB RAM</td></tr>
+  <tr><td>Test devices</td><td>Two real Android phones over USB (no emulator)</td></tr>
+  <tr><td>IDE</td><td>Android Studio (latest stable) with its bundled JDK</td></tr>
+  <tr><td>Language / UI</td><td>Kotlin, Jetpack Compose with Material 3</td></tr>
+  <tr><td>Build system</td><td>Gradle (Kotlin DSL: <code>build.gradle.kts</code>, <code>libs.versions.toml</code>)</td></tr>
+  <tr><td>Backend</td><td>Firebase Authentication, Cloud Firestore, Cloud Messaging (Spark plan); Vercel serverless function (Node.js, Firebase Admin SDK)</td></tr>
+  <tr><td>Payments</td><td>Razorpay Checkout SDK, test mode</td></tr>
+  <tr><td>Version control</td><td>Git and GitHub</td></tr>
+</table>
+<h3>4.2 Functional requirements</h3>
+<table>
+  <tr><th>ID</th><th>Requirement</th></tr>
+  <tr><td>FR1</td><td>Users register as Customer or Provider and log in with email and password; they stay logged in; blocked users cannot log in.</td></tr>
+  <tr><td>FR2</td><td>New providers wait for admin approval before customers can see them.</td></tr>
+  <tr><td>FR3</td><td>Customers browse categories and services with prices and search services by name.</td></tr>
+  <tr><td>FR4</td><td>Customers see only approved, available, unblocked providers of the chosen category, filtered by area.</td></tr>
+  <tr><td>FR5</td><td>Customers book a date (today + 7 days) and slot (Morning / Afternoon / Evening); a provider cannot be booked twice for the same slot.</td></tr>
+  <tr><td>FR6</td><td>Status changes only as REQUESTED → ACCEPTED → IN_PROGRESS → COMPLETED, plus REJECTED and CANCELLED, with a time for each change.</td></tr>
+  <tr><td>FR7</td><td>The job can start only with the customer's correct 4-digit PIN.</td></tr>
+  <tr><td>FR8</td><td>After completion the payment is recorded: cash confirmed by the provider, UPI confirmed by Razorpay.</td></tr>
+  <tr><td>FR9</td><td>Customers rate a completed booking once (1–5 stars); the provider's average updates.</td></tr>
+  <tr><td>FR10</td><td>Notifications for every important event, live in the app and as push notifications.</td></tr>
+  <tr><td>FR11</td><td>The admin sees a dashboard, approves providers, blocks users, manages services, categories, coupons and complaints.</td></tr>
+</table>
+<h3>4.3 Non-functional requirements</h3>
+<ul>
+  <li><b>Real time:</b> changes appear on the other phone in about a second, without refreshing.</li>
+  <li><b>Security:</b> server-side Firestore rules protect data even from a modified app.</li>
+  <li><b>Consistency:</b> every status change, rating and completion runs in a Firestore transaction.</li>
+  <li><b>Usability:</b> each screen shows a "Next step" box; Home screens show "Needs your attention" first.</li>
+  <li><b>Cost:</b> free plans only.</li>
+</ul>
+
+<!-- ============================================================ 5 -->
+<h2>5. Technology stack and why it was chosen</h2>
+<table>
+  <tr><th>Technology</th><th>Why</th></tr>
+  <tr><td>Kotlin</td><td>Google's preferred Android language: null safety, short and readable code, coroutines for background work.</td></tr>
+  <tr><td>Jetpack Compose (Material 3)</td><td>UI written in Kotlin functions; the screen redraws automatically when its state changes.</td></tr>
+  <tr><td>MVVM + StateFlow</td><td>Each layer has one job (screen draws, ViewModel holds state and logic, repository talks to Firebase), so code is easier to read and test.</td></tr>
+  <tr><td>Navigation Compose</td><td>One Activity, every screen a route; simple back stack handling.</td></tr>
+  <tr><td>Firebase Authentication</td><td>Secure email/password login and password reset emails without writing a server.</td></tr>
+  <tr><td>Cloud Firestore</td><td>Cloud database with live listeners, transactions and security rules; free Spark plan.</td></tr>
+  <tr><td>Firebase Cloud Messaging</td><td>Free push notifications.</td></tr>
+  <tr><td>Razorpay (test mode)</td><td>Real payment screen with UPI, but no real money, so it is safe for a demo.</td></tr>
+  <tr><td>Vercel (Hobby)</td><td>Free hosting for one small Node.js function using the Firebase Admin SDK (Cloud Functions would need the paid Blaze plan).</td></tr>
+</table>
+
+<!-- ============================================================ 6 -->
+<h2 class="pb">6. System design</h2>
+<h3>6.1 Architecture</h3>
+<table class="diagram">
+  <tr>
+    <td><div class="box"><b>Screen</b><br>Jetpack Compose<br>(draws state)</div></td>
+    <td class="arrow">&#8594;</td>
+    <td><div class="box"><b>ViewModel</b><br>StateFlow<br>(state + checks)</div></td>
+    <td class="arrow">&#8594;</td>
+    <td><div class="box"><b>Repository</b><br>Kotlin object<br>(only Firebase code)</div></td>
+    <td class="arrow">&#8594;</td>
+    <td><div class="box"><b>Firebase</b><br>Auth · Firestore · FCM<br>+ Security rules</div></td>
+  </tr>
+  <tr>
+    <td colspan="5"></td><td class="arrow">&#8597;</td>
+    <td><div class="box"><b>Vercel server</b><br>set password · send push<br>(Firebase Admin SDK)</div></td>
+  </tr>
+</table>
+<p>A screen never talks to Firebase directly. It shows the state held by its ViewModel and sends user actions to it. The
+ViewModel checks the input and calls a repository. Repositories are the only code that reads and writes Firebase.
+Firestore listeners send every change back up as a Kotlin Flow, so all phones stay in sync. Payments go to Razorpay and
+come back to <code>MainActivity</code>; pushes arrive through <code>PushService</code>.</p>
+
+<h3>6.2 Database design (Firestore collections)</h3>
+<table>
+  <tr><th>Collection</th><th>Main fields</th><th>Purpose</th></tr>
+  <tr><td><code>users/{uid}</code></td><td>name, email, phone, role (customer / provider / admin), area, address, savedAddresses, favoriteProviderIds, isBlocked, fcmToken</td><td>Every person</td></tr>
+  <tr><td><code>providers/{uid}</code></td><td>name, categoryId, area, experienceYears, bio, approvalStatus, isAvailable, offDays, ratingAvg, ratingCount, jobsCompleted, totalEarnings</td><td>Provider profile and stats</td></tr>
+  <tr><td><code>categories/{id}</code></td><td>name, iconKey, colorHex, isActive, order</td><td>Admin-added or hidden categories</td></tr>
+  <tr><td><code>services/{id}</code></td><td>categoryId, name, description, included, notIncluded, price, durationMins, isActive</td><td>Catalogue with prices</td></tr>
+  <tr><td><code>bookings/{id}</code></td><td>customer/provider ids, names, phones; service, servicePrice, visitFee, extraItems, discount, couponCode, totalAmount; date, timeSlot, address, note; status and a time for each step; startPin; paymentMode, paymentStatus, paymentId; revisit fields and redo PIN; requestedAt</td><td>One booking</td></tr>
+  <tr><td><code>bookings/{id}/messages</code></td><td>senderId, senderName, text, createdAt</td><td>Chat for that booking</td></tr>
+  <tr><td><code>slots/{provider_date_slot}</code></td><td>providerId, customerId, bookingId, date, timeSlot, heldUntil, accepted</td><td>Stops double booking; On hold / Booked</td></tr>
+  <tr><td><code>reviews/{bookingId}</code></td><td>rating 1–5, comment, providerId, customerId</td><td>One review per booking</td></tr>
+  <tr><td><code>coupons/{CODE}</code></td><td>type (FLAT / PERCENT), value, minOrder, maxDiscount, isActive</td><td>Offers</td></tr>
+  <tr><td><code>complaints/{id}</code></td><td>bookingId, customerId, providerId, message, status (OPEN / RESOLVED)</td><td>Report a problem</td></tr>
+  <tr><td><code>notifications/{id}</code></td><td>userId, title, message, bookingId, isRead, createdAt</td><td>In-app alerts (also pushed)</td></tr>
+</table>
+<p>Areas, time slots, the ₹49 visit fee and the six default categories are fixed lists in the Kotlin code
+(<code>FixedData.kt</code>). Names and phone numbers are copied into each booking so a booking and its receipt always show
+correct details even if someone edits their profile later.</p>
+
+<h3>6.3 Use cases</h3>
+<table>
+  <tr><th>Actor</th><th>Use cases</th></tr>
+  <tr><td>Customer</td><td>Register / login / profile / change email · browse and search · find a provider by area · book a service · apply coupon · track live · cancel / reschedule · change payment method · pay by UPI (test) or cash · chat · rate and review · receipt · redo within 7 days · report a problem · notifications</td></tr>
+  <tr><td>Provider</td><td>Register and wait for approval · availability and days off · accept / reject · on my way · start with PIN · complete with extras · cash collected · redo with PIN · chat · earnings · history · notifications</td></tr>
+  <tr><td>Admin</td><td>Dashboard · approve / reject providers · block / unblock · reset link and change password · all bookings and details · services · categories · coupons · complaints · sample data</td></tr>
+</table>
+
+<h3>6.4 Booking status lifecycle</h3>
+<table>
+  <tr><th>From</th><th>To</th><th>Who</th><th>Condition</th></tr>
+  <tr><td>—</td><td>REQUESTED</td><td>Customer</td><td>Slot free (or old hold expired), provider available, coupon valid</td></tr>
+  <tr><td>REQUESTED</td><td>ACCEPTED</td><td>Provider</td><td>Not expired; slot not taken by someone else</td></tr>
+  <tr><td>REQUESTED</td><td>REJECTED</td><td>Provider</td><td>With a reason</td></tr>
+  <tr><td>REQUESTED / ACCEPTED</td><td>CANCELLED</td><td>Customer (or provider after accepting)</td><td>With a reason; slot freed</td></tr>
+  <tr><td>REQUESTED / ACCEPTED</td><td>REQUESTED</td><td>Customer</td><td>Reschedule to a free slot; provider must accept again</td></tr>
+  <tr><td>ACCEPTED</td><td>IN_PROGRESS</td><td>Provider</td><td>Correct 4-digit start PIN</td></tr>
+  <tr><td>IN_PROGRESS</td><td>COMPLETED</td><td>Provider</td><td>Extras valid (≤ ₹50,000 total, ≤ 10 items); payment becomes PENDING</td></tr>
+  <tr><td>COMPLETED (payment PENDING)</td><td>payment PAID</td><td>Provider (cash) or Razorpay (UPI)</td><td>Once only</td></tr>
+</table>
+<p>Every move runs in a <b>Firestore transaction</b>: it reads the current status and refuses any move that is not in this
+table. If two phones act at the same moment, only one change succeeds.</p>
+
+<!-- ============================================================ 7 -->
+<h2 class="pb">7. Modules and features</h2>
+<h3>7.1 Customer</h3>
+<ul>
+  <li><b>Home in sections:</b> Needs your attention (pay, rate, provider did not answer), Your next booking with the start PIN, Book a service, Categories, Book again, Popular services.</li>
+  <li><b>Book a service:</b> a short guided form – category, then service with price preview, then professional. Category tiles open the same form.</li>
+  <li><b>Provider list:</b> starts in the customer's own area (falls back to all areas if nobody is there), sort by rating / experience / jobs, Available today, favourites, badges.</li>
+  <li><b>Booking form:</b> date chips (provider's days off disabled), slots shown as Booked or On hold, saved addresses, book for someone else, problem note, Cash or UPI.</li>
+  <li><b>Review page:</b> one summary card, price details, Offers for you (best first, one-tap Apply) and a coupon code box.</li>
+  <li><b>Booking detail:</b> live status steps, Next step box, PIN card, call and chat, cancel, reschedule, switch payment method, Pay now (UPI test), receipt, rate, redo request with redo PIN, report a problem.</li>
+  <li><b>Profile:</b> name, phone, area, address, saved addresses, change email, favourites, help, logout.</li>
+</ul>
+<h3>7.2 Provider</h3>
+<ul>
+  <li><b>Waiting for approval</b> screen until the admin approves.</li>
+  <li><b>Home in sections:</b> Needs your attention (new requests, payments to collect, redo requests), Next job, Today's jobs, Earnings (Today, This week, To collect, weekly chart), Availability (switch and days off), Recent reviews.</li>
+  <li><b>Job detail:</b> the action for the current step at the top – Accept / Reject, I'm on my way, PIN and Start, Complete with extra parts, Cash collected or automatic UPI payment received, redo with the customer's redo PIN – then call, maps, chat and booking details.</li>
+  <li><b>Requests</b> grouped as New requests, Redo requests, Payments to collect, Upcoming; <b>History</b> of finished jobs.</li>
+</ul>
+<h3>7.3 Admin</h3>
+<ul>
+  <li><b>Dashboard:</b> needs attention (pending providers, complaints, redo and expired requests – each opens a filtered list), counts, earnings split between ServiceHub and providers, charts. Red badges on the tabs.</li>
+  <li><b>Approvals</b>, <b>Users</b> (search, filter by role and category, block, reset link, change password), <b>Bookings</b> (filters and read-only detail with call buttons), <b>Services</b>, <b>Categories</b>, <b>Coupons</b>, <b>Complaints</b>, Load sample data.</li>
+</ul>
+
+<!-- ============================================================ 8 -->
+<h2>8. Key workflows step by step</h2>
+<h3>8.1 Booking and the 1-hour hold</h3>
+<ol>
+  <li>The customer confirms a booking. In one transaction the app checks the slot document and saves both the booking (REQUESTED, random 4-digit PIN) and the slot (held for 1 hour).</li>
+  <li>Other customers now see that slot as <b>On hold</b>. The provider gets a notification and a push.</li>
+  <li>If the provider accepts, the slot becomes <b>Booked</b>. If there is no answer within 1 hour, the hold ends: others may book the slot, and the customer is offered another provider or another time.</li>
+</ol>
+<h3>8.2 Doing the job</h3>
+<ol>
+  <li>The provider taps I'm on my way; the customer is told.</li>
+  <li>On arrival the customer tells the PIN; the provider enters it and the job becomes IN_PROGRESS.</li>
+  <li>The provider completes the job and may add extra parts; the new total is calculated and the job is added to the provider's totals in the same transaction.</li>
+</ol>
+<h3>8.3 Payment</h3>
+<ul>
+  <li><b>Cash:</b> only the provider can confirm it (Cash collected).</li>
+  <li><b>UPI:</b> the customer taps Pay now; Razorpay (test mode) returns a payment ID; the app marks the booking PAID and the provider sees "UPI payment received" live with a push.</li>
+  <li>The customer can switch Cash ↔ UPI before paying. Earnings count only money actually received; unpaid jobs appear under To collect.</li>
+</ul>
+<h3>8.4 After the job</h3>
+<ul>
+  <li><b>Rating:</b> once per booking; the average is updated in a transaction: new average = (old average × old count + new rating) ÷ (old count + 1).</li>
+  <li><b>Redo within 7 days:</b> the customer asks for a free redo and receives a redo PIN; the provider can mark it done only with that PIN.</li>
+  <li><b>Complaint:</b> the customer reports a problem; the admin calls both sides and marks it resolved.</li>
+</ul>
+<h3>8.5 Notifications and push</h3>
+<p>Each event writes a notification document for the other person (live badge in the app). The app then asks the Vercel
+server to push it; the server checks that the sender belongs to that booking and sends it to the receiver's phone.
+Tapping the push opens that booking, or its chat for a message.</p>
+
+<!-- ============================================================ 9 -->
+<h2 class="pb">9. Implementation details</h2>
+<table>
+  <tr><th>Package / file</th><th>Contents</th></tr>
+  <tr><td><code>MainActivity.kt</code></td><td>The only Activity; receives Razorpay results and push taps.</td></tr>
+  <tr><td><code>navigation/</code></td><td>Routes, AppNavHost (all screens, role-based start, badges), bottom bars.</td></tr>
+  <tr><td><code>data/model/</code></td><td>Data classes and small pure rules (coupon discount, slot state, no-answer, redo window).</td></tr>
+  <tr><td><code>data/repository/</code></td><td>Auth, User, Service, Provider, Booking, Review, Notification, Admin, Complaint, Coupon, Chat.</td></tr>
+  <tr><td><code>payment/</code>, <code>push/</code></td><td>Razorpay test payments; push token, sending and opening the right page.</td></tr>
+  <tr><td><code>ui/</code></td><td>One file per screen with its ViewModel, grouped by role, plus shared components and theme.</td></tr>
+  <tr><td><code>admin-server/</code></td><td>Vercel functions <code>set-password.js</code> and <code>send-push.js</code>.</td></tr>
+  <tr><td><code>firestore.rules</code></td><td>Security rules with a comment on every rule.</td></tr>
+</table>
+<p>The source code has about 11,500 lines of Kotlin in 70 files. A file-by-file guide with each workflow traced through
+the code is in <code>docs/CODE_GUIDE.md</code> in the repository.</p>
+<h3>Example: race-proof booking (simplified from <code>BookingRepository.createBooking</code>)</h3>
+<p><code>db.runTransaction { t -&gt; if (isTaken(t.get(slot), now)) throw "already booked"; t.set(slot, slotData); t.set(booking, data) }</code></p>
+<p>Only one document can have the id <code>providerId_date_slot</code>, and the check and both writes happen together, so two
+customers can never get the same provider at the same time.</p>
+
+<!-- ============================================================ 10 -->
+<h2>10. Security</h2>
+<ul>
+  <li>Users edit only their own profile; they can never change their own role or blocked status. Admin is never selectable at registration.</li>
+  <li>Only the admin approves providers, blocks users and edits services, categories and coupons.</li>
+  <li>A booking is readable only by its customer, its provider and the admin. Each side may change only its own fields: a customer can never mark a job completed or cash collected, and can cancel or reschedule only while it is Requested or Accepted.</li>
+  <li>Provider totals can only go up by one completed job; ratings stay 1–5 and count up by one.</li>
+  <li>A discount is allowed only with an active coupon.</li>
+  <li>Chat messages and notifications are limited to the people on that booking.</li>
+  <li>Blocked users cannot write anything and are logged out at once.</li>
+  <li>Secret keys (Firebase service account, Razorpay) are never in the app or on GitHub; the service account lives only in Vercel's settings, the Razorpay test key in the local <code>local.properties</code> file.</li>
+</ul>
+
+<!-- ============================================================ 11 -->
+<h2>11. Testing</h2>
+<h3>11.1 Automatic tests</h3>
+<p>50 JUnit tests (<code>app/src/test/.../LogicTest.kt</code>) check the pure rules: provider lists and time order,
+earnings (only paid jobs), expired and overdue requests, slot hold states, coupon discounts and offer order, redo window,
+next-step messages, dashboard counts, rating average and more. All pass (<code>gradlew testDebugUnitTest</code>).</p>
+<h3>11.2 Manual two-phone testing</h3>
+<p>A 163-case test script (<code>docs/TEST_SCRIPT.md</code>) was run on two real phones, one as customer and one as
+provider. Sample cases:</p>
+<table>
+  <tr><th>Case</th><th>Steps</th><th>Expected</th><th>Result</th></tr>
+  <tr><td>Double booking</td><td>Two customers book the same provider, date and slot at the same time</td><td>Only one succeeds; the other sees "already booked"</td><td>Pass</td></tr>
+  <tr><td>Start PIN</td><td>Provider enters a wrong PIN, then the right one</td><td>Wrong PIN refused; right PIN starts the job</td><td>Pass</td></tr>
+  <tr><td>Live tracking</td><td>Provider accepts on phone B</td><td>Phone A shows Accepted and the PIN within seconds</td><td>Pass</td></tr>
+  <tr><td>UPI test payment</td><td>Customer pays with <code>success@razorpay</code></td><td>Booking PAID with payment ID; provider notified</td><td>Pass</td></tr>
+  <tr><td>Cash payment</td><td>Provider taps Cash collected</td><td>PAID; earnings Today increase</td><td>Pass</td></tr>
+  <tr><td>1-hour hold</td><td>Provider does not answer for over an hour</td><td>Slot free for others; customer offered another provider</td><td>Pass</td></tr>
+  <tr><td>Coupon</td><td>Apply FIRST50 on a ₹348 bill</td><td>Total ₹298; provider share unchanged</td><td>Pass</td></tr>
+  <tr><td>Extras limit</td><td>Add extras totalling ₹55,000</td><td>Complete disabled with a clear message</td><td>Pass</td></tr>
+  <tr><td>Push</td><td>App closed on phone B; send a chat message</td><td>Push arrives; tapping opens the chat</td><td>Pass</td></tr>
+  <tr><td>Blocked user</td><td>Admin blocks a logged-in user</td><td>User logged out at once; cannot log in</td><td>Pass</td></tr>
+</table>
+<div class="note">Update the Result column with your own results while you test; mark any failed case and how it was fixed.</div>
+
+<!-- ============================================================ 12 -->
+<h2 class="pb">12. Screenshots</h2>
+<p>Insert screenshots taken on the phone (Power + Volume down). Suggested set:</p>
+<table>
+  <tr><td><div class="placeholder">Login / Register</div></td><td><div class="placeholder">Customer Home</div></td><td><div class="placeholder">Book a service form</div></td></tr>
+  <tr><td><div class="placeholder">Provider list</div></td><td><div class="placeholder">Booking form (On hold / Booked)</div></td><td><div class="placeholder">Review page with offers</div></td></tr>
+  <tr><td><div class="placeholder">Booking detail with PIN</div></td><td><div class="placeholder">Chat</div></td><td><div class="placeholder">Pay now (Razorpay test)</div></td></tr>
+  <tr><td><div class="placeholder">Provider Home</div></td><td><div class="placeholder">Job detail (PIN / Complete)</div></td><td><div class="placeholder">Receipt</div></td></tr>
+  <tr><td><div class="placeholder">Admin Dashboard</div></td><td><div class="placeholder">Admin Coupons / Bookings</div></td><td><div class="placeholder">Push notification</div></td></tr>
+</table>
+
+<!-- ============================================================ 13 -->
+<h2>13. Project progress and GitHub history</h2>
+<p>The project was built in 14 planned phases followed by improvement rounds, with a commit after each tested step.
+Repository: <b>https://github.com/janvi0802/ServiceHub</b> (branch <code>main</code>). The full list with dates is in
+<code>docs/GIT_HISTORY.md</code>.</p>
+<table>
+  <tr><th>Date</th><th>Work completed</th></tr>
+  <tr><td>04 Nov 2026</td><td>Phase 0–1: project set-up with Firebase, skeleton, navigation · Phase 2: login, register, roles, profile · Phase 3: admin dashboard, sample data, approval · Phases 4–8: catalogue, search, providers, booking, tracking, provider jobs, logic tests</td></tr>
+  <tr><td>17 Nov 2026</td><td>Phases 9–13: notifications, reviews, receipt, admin control, security rules, app icon, test script, README, report kit · race-proof slots, forgot password, expired requests, days off, complaints, admin categories, design system, on my way, extra parts, 7-day guarantee</td></tr>
+  <tr><td>23–24 Nov 2026</td><td>Beginner guide · show/hide password, admin reset link, filters · service details, review before confirm, book for someone else, favourites, help</td></tr>
+  <tr><td>25 Nov 2026</td><td>UPI test payment (Razorpay) and admin password change via Vercel · payment step, redo PIN, new Home screens, 1-hour hold, coupons, chat, push notifications</td></tr>
+  <tr><td>26 Nov 2026</td><td>Area fallback, push opens the right page, change email, offers list, extras limit, rule fixes, final documentation and report</td></tr>
+</table>
+<div class="note">Attach as proof: a screenshot of the GitHub <b>Commits</b> page (https://github.com/janvi0802/ServiceHub/commits/main) and of the <b>Activity</b> page (https://github.com/janvi0802/ServiceHub/activity), which shows every push.</div>
+
+<!-- ============================================================ 14 -->
+<h2>14. Limitations and future scope</h2>
+<h3>Limitations</h3>
+<ul>
+  <li>Payments use Razorpay test mode, and the payment is recorded by the app, not verified on a server.</li>
+  <li>The provider's app downloads the booking including the PINs (they are hidden on screen only).</li>
+  <li>The coupon amount is calculated in the app; the rules check only that the coupon exists and is active.</li>
+  <li>The 1-hour "no answer" notice is created when the customer opens the app, not exactly at one hour.</li>
+</ul>
+<h3>Future scope</h3>
+<ul>
+  <li>Server-side payment check (Razorpay order and signature), server-side price, coupon and PIN checks.</li>
+  <li>Timed alerts with a scheduled server; real (live-mode) payments after Razorpay KYC.</li>
+  <li>Photos of the problem and provider ID documents (needs Firebase Storage on the paid plan).</li>
+  <li>Maps and live location of the professional (needs a Maps billing account).</li>
+  <li>Phone OTP login, Hindi / Gujarati, dark mode, provider working hours and custom slots.</li>
+</ul>
+
+<!-- ============================================================ 15 -->
+<h2>15. Conclusion</h2>
+<p>ServiceHub meets its goal of a real, working home-services app used on two phones at the same time. It covers the
+complete life of a booking – discovery, booking, live tracking, a secure start, completion, payment, rating, guarantee and
+support – for three roles in one app. Firestore transactions and security rules keep the data correct and protected,
+and the MVVM structure keeps each part small enough to explain. Building it taught the practical side of Android
+development: state-driven UI, real-time cloud data, concurrency, security, payments, push notifications and testing on
+real devices, all on free plans.</p>
+
+<!-- ============================================================ 16 -->
+<h2>16. References</h2>
+<ol>
+  <li>Android Developers – Jetpack Compose documentation, developer.android.com/compose</li>
+  <li>Android Developers – Guide to app architecture (MVVM, ViewModel, StateFlow), developer.android.com/topic/architecture</li>
+  <li>Firebase documentation – Authentication, Cloud Firestore (transactions, security rules), Cloud Messaging, firebase.google.com/docs</li>
+  <li>Kotlin documentation – Coroutines and Flow, kotlinlang.org/docs</li>
+  <li>Razorpay documentation – Android Standard Checkout and test mode, razorpay.com/docs</li>
+  <li>Vercel documentation – Serverless Functions, vercel.com/docs</li>
+</ol>
+
+</body>
+</html>

@@ -215,3 +215,18 @@ reminder, "from ₹" prices, search, receipt text, weekdays and days off, admin 
 | 151 | First login on Android 13+ | "Allow notifications?" asked once |
 | 152 | Close the app on phone B; on phone A accept / send a message | Phone B shows a push in the notification bar; tapping opens the app |
 | 153 | Log in to a second account on the same phone | Pushes for the first account no longer arrive on this phone |
+
+## New cases (area fallback, push taps, change email, layout)
+
+| TC | Steps | Expected |
+|---|---|---|
+| 154 | Customer whose area has no provider of that category opens the provider list | All areas shown, with "No professionals in … yet – showing all areas" |
+| 155 | App closed; tap a "New booking request" push (provider) | App opens straight on that **Job details** |
+| 156 | Tap a "New message" push / alert | Opens the **Chat** of that booking |
+| 157 | Tap "Booking accepted" push (customer) while the app is open | Opens that **Booking details** |
+| 158 | Profile → **Change email** → new email + current password → Send link | "Link sent"; after opening the email link and logging in with the new email, Profile shows it |
+| 159 | Change email with a wrong password / an email already used | Clear error, nothing changes |
+| 160 | Provider job screen (Accepted) | PIN box and Start button right under the status steps |
+| 161 | Customer Home → tap the **Plumber** tile | Book a service form opens with Plumber already chosen |
+| 162 | Provider Complete popup: add items totalling over ₹50,000 (e.g. 30,000 + 25,000) | Red note 'All extras together can be at most ₹50,000'; Complete disabled. Max 10 items. |
+| 163 | Admin has FIRST50 (min 199) and BIG200 (min 999); customer reviews a ₹348 booking | 'Offers for you': FIRST50 first with BEST OFFER and Apply; BIG200 greyed 'Add ₹651 more to use'; booking form shows '1 offer available' |

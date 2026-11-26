@@ -93,15 +93,16 @@ You can also **create your own account** (Login → "New here? Create an account
 
 Best with **two phones** (one customer, one provider). With one phone, log out and in between accounts (*Profile → Log out*).
 
-1. **Customer:** Home → choose a category (e.g. Plumber) → choose a service → choose a provider → **Book now** → pick date and slot → **Confirm booking**.
-2. **Provider:** the **Jobs** tab shows a red number → open the request → **Accept**.
-3. **Customer:** the booking now shows **Accepted** and a **4-digit PIN**.
-4. **Provider:** tap **I'm on my way** → enter the customer's PIN → **Start job**.
-5. **Provider:** **Complete job** → (optional) add an extra part like "Tap cartridge ₹180" → tick **Payment received** → **Complete**.
-6. **Customer:** **Rate service** → **View receipt** → try **Share**.
-7. **Admin:** open the **Dashboard** and check the numbers changed.
+1. **Customer:** Home → **Book a service** (or tap a category) → choose the service → **Choose professional** → **Book** → pick date and slot → **Review booking** → (optional) **Apply** an offer → **Confirm booking**.
+2. **Provider:** the **Requests** tab shows a red number (and a push arrives) → open the request → **Accept**.
+3. **Customer:** the booking now shows **Accepted** and a **4-digit PIN** (also on Home). Try **Chat**.
+4. **Provider:** tap **I'm on my way** → enter the customer's PIN at the top → **Start job**.
+5. **Provider:** **Complete job** → (optional) add an extra part like "Tap cartridge ₹180" → **Complete**.
+6. **Payment:** Cash → provider taps **Cash collected**. UPI → customer taps **Pay now** and uses the test UPI id `success@razorpay` (no real money).
+7. **Customer:** **Rate service** → **View receipt** → try **Share**.
+8. **Admin:** open the **Dashboard** and check the numbers changed; tap a booking under **Bookings** to see its details.
 
-The full list of **98 test cases** is in **`docs/TEST_SCRIPT.md`** (open it in Android Studio – it's next to this file).
+The full list of **163 test cases** is in **`docs/TEST_SCRIPT.md`** (open it in Android Studio – it's next to this file).
 
 ## Step 8 – How to report a problem
 

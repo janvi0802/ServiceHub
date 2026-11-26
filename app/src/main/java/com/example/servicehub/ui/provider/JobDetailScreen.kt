@@ -112,37 +112,7 @@ fun JobDetailScreen(
         ) {
             StatusSteps(status)
             com.example.servicehub.ui.booking.NextStepCard(com.example.servicehub.ui.booking.providerNextStep(booking))
-            BookingInfoCard(booking, "Customer", booking.customerName)
-            TimelineCard(booking)
-
-            if (status.isActive) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { openDialer(context, booking.customerPhone) }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Filled.Call, contentDescription = null)
-                        Text("  Call")
-                    }
-                    OutlinedButton(onClick = { openMaps(context, booking.address) }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Filled.Map, contentDescription = null)
-                        Text("  Maps")
-                    }
-                }
-                // Booked for someone else (e.g. the customer's parents): call the person at the address
-                if (booking.contactPhone.isNotBlank()) {
-                    OutlinedButton(onClick = { openDialer(context, booking.contactPhone) }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Filled.Call, contentDescription = null)
-                        Text("  Call ${booking.contactName} (at the address)")
-                    }
-                }
-            }
-
-            // Chat with the customer (open until 7 days after the job)
-            if (com.example.servicehub.data.repository.canChatAt(booking, System.currentTimeMillis())) {
-                OutlinedButton(onClick = { onOpenChat(booking.id) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.Chat, contentDescription = null)
-                    Text("  Chat with ${booking.customerName}")
-                }
-            }
-
+            // The action for this step (Accept / PIN / Complete / payment) comes FIRST, right under the steps
             when {
                 // Nobody accepted it in time: nothing can be done any more.
                 booking.isExpired -> Text(
@@ -273,6 +243,37 @@ fun JobDetailScreen(
             }
 
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+
+            if (status.isActive) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { openDialer(context, booking.customerPhone) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Call, contentDescription = null)
+                        Text("  Call")
+                    }
+                    OutlinedButton(onClick = { openMaps(context, booking.address) }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Filled.Map, contentDescription = null)
+                        Text("  Maps")
+                    }
+                }
+                // Booked for someone else (e.g. the customer's parents): call the person at the address
+                if (booking.contactPhone.isNotBlank()) {
+                    OutlinedButton(onClick = { openDialer(context, booking.contactPhone) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Filled.Call, contentDescription = null)
+                        Text("  Call ${booking.contactName} (at the address)")
+                    }
+                }
+            }
+
+            // Chat with the customer (open until 7 days after the job)
+            if (com.example.servicehub.data.repository.canChatAt(booking, System.currentTimeMillis())) {
+                OutlinedButton(onClick = { onOpenChat(booking.id) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                    Text("  Chat with ${booking.customerName}")
+                }
+            }
+
+            BookingInfoCard(booking, "Customer", booking.customerName)
+            TimelineCard(booking)
         }
 
         if (showAccept) {
@@ -358,7 +359,7 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (List<ExtraItem>) -> 
     val extraSum = amounts.sumOf { it.toIntOrNull() ?: 0 }
     val rowsValid = names.indices.all { i ->
         (names[i].isBlank() && amounts[i].isBlank()) ||
-            (names[i].isNotBlank() && (amounts[i].toIntOrNull() ?: 0) in 1..50_000)
+            (names[i].isNotBlank() && (amounts[i].toIntOrNull() ?: 0) >= 1)
     }
 
     AlertDialog(
@@ -381,10 +382,14 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (List<ExtraItem>) -> 
                         }
                     }
                 }
-                if (names.size < 10) {
+                if (names.size < com.example.servicehub.data.repository.MAX_EXTRA_ITEMS) {
                     TextButton(onClick = { names.add(""); amounts.add("") }) { Text("+ Add item (e.g. tap cartridge)") }
                 }
-                if (!rowsValid) Caption("Each item needs a name and an amount from ₹1 to ₹50,000.", color = MaterialTheme.colorScheme.error)
+                if (!rowsValid) Caption("Each item needs a name and an amount of at least ₹1.", color = MaterialTheme.colorScheme.error)
+                // The ₹50,000 limit is for all extras together
+                val overLimit = extraSum > com.example.servicehub.data.repository.MAX_EXTRAS_TOTAL
+                if (overLimit) Caption("All extras together can be at most ₹50,000 (now ${rupees(extraSum)}).", color = MaterialTheme.colorScheme.error)
+                else if (names.isNotEmpty()) Caption("${names.size} of ${com.example.servicehub.data.repository.MAX_EXTRA_ITEMS} items · extras ${rupees(extraSum)} of ₹50,000")
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
                     "Amount to collect: ${rupees(booking.servicePrice + booking.visitFee + extraSum - booking.discount)}",
@@ -404,7 +409,7 @@ private fun CompleteJobDialog(booking: Booking, onConfirm: (List<ExtraItem>) -> 
                         .map { ExtraItem(names[it].trim(), amounts[it].toIntOrNull() ?: 0) }
                     onConfirm(extras)
                 },
-                enabled = rowsValid,
+                enabled = rowsValid && extraSum <= com.example.servicehub.data.repository.MAX_EXTRAS_TOTAL,
             ) { Text("Complete") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Back") } },

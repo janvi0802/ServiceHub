@@ -203,3 +203,19 @@ Deadline: about 2026-11-18. Plan: about one phase per day.
 - Push: Firebase Cloud Messaging (free). Phone token saved on users/{uid}; each notification asks the Vercel server (api/send-push.js) to push it; the server checks the sender is on that booking. Needs ADMIN_API_URL and the pushed server code.
 - Limit: the 1-hour 'no answer' alert is still created when the customer's app is opened (a timed push would need a scheduled server).
 - **Publish firestore.rules again** (messages, fcmToken).
+
+## Round: area fallback, push opens the right page, change email, layout (2026-11-25)
+
+- Provider list falls back to all areas when the customer's area has nobody.
+- Tapping a push (or an alert) opens that booking: chat for messages, booking details (customer) or job details (provider). Server sends bookingId + type.
+- Profile: Change email (re-enter password; Firebase emails a confirmation link; users/{uid}.email synced afterwards).
+- Provider job screen: the step's action (Accept / PIN / Complete / payment) is at the top.
+- Category tiles open the same guided Book a service form.
+- **Publish firestore.rules again** (email field) and push the code so Vercel deploys the send-push change.
+
+## Final documentation (2026-11-26)
+
+- README, HOW_TO_TEST, REPORT_KIT updated to the current app; new docs/CODE_GUIDE.md (how to read the code, every workflow traced file by file).
+- docs/PROJECT_REPORT.html + .pdf: full project report (fill in the cover details and screenshots).
+- docs/GIT_HISTORY.md: commit and push history as proof of progress.
+- Rule fix: a customer can cancel/reschedule only while Requested or Accepted. **Publish firestore.rules again.**

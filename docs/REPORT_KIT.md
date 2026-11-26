@@ -21,18 +21,26 @@ flowchart LR
     subgraph Phone["Android app (one Activity)"]
         UI["Screens<br/>(Jetpack Compose)"] -->|user actions| VM["ViewModels<br/>(StateFlow)"]
         VM -->|state| UI
-        VM --> REPO["Repositories<br/>Auth · User · Service · Provider<br/>Booking · Review · Notification · Admin"]
+        VM --> REPO["Repositories<br/>Auth · User · Service · Provider · Booking<br/>Review · Notification · Admin · Complaint · Coupon · Chat"]
+        PAY["RazorpayPayments"]
+        PUSH["PushService"]
     end
     REPO -->|login / logout| AUTH["Firebase Authentication"]
     REPO -->|read, write, transactions| FS[("Cloud Firestore")]
     FS -->|live updates (snapshot listeners)| REPO
     RULES["Security rules"] -.protect.- FS
+    PAY -->|UPI test payment| RZP["Razorpay (test mode)"]
+    REPO -->|change password, send push| SRV["Vercel server<br/>(Firebase Admin SDK)"]
+    SRV --> AUTH
+    SRV -->|push| FCM["Firebase Cloud Messaging"]
+    FCM --> PUSH
 ```
 
 **Explanation:** a screen only draws the state it gets from its ViewModel. The ViewModel holds
 the screen's data in a StateFlow and calls a repository. Repositories are the only code that
 talks to Firebase. Firestore pushes every change to all listening phones, so both phones stay in
-sync without a refresh.
+sync without a refresh. Two things a phone app must never do itself (set another user's password,
+send a push with the secret key) run on a tiny free Vercel server that checks the caller first.
 
 ## 3. Firestore structure
 
@@ -49,6 +57,8 @@ erDiagram
     BOOKINGS ||--o{ COMPLAINTS : "reported problems"
     PROVIDERS ||--o{ REVIEWS : "providerId"
     USERS ||--o{ NOTIFICATIONS : "userId"
+    BOOKINGS ||--o{ MESSAGES : "chat (subcollection)"
+    COUPONS ||--o{ BOOKINGS : "couponCode"
 
     USERS {
         string id PK
@@ -97,7 +107,29 @@ erDiagram
         string startPin
         string paymentMode "Cash | UPI"
         string paymentStatus "PENDING | PAID"
+        string paymentId "Razorpay test id"
         bool isRated
+        string couponCode
+        int discount
+        int extraAmount
+        string revisitStatus "REQUESTED | DONE"
+        string revisitPin
+        long requestedAt
+    }
+    COUPONS {
+        string code PK "e.g. FIRST50"
+        string type "FLAT | PERCENT"
+        int value
+        int minOrder
+        int maxDiscount
+        bool isActive
+    }
+    MESSAGES {
+        string id PK
+        string senderId FK
+        string senderName
+        string text "max 500"
+        long createdAt
     }
     REVIEWS {
         string id PK "= bookingId"
@@ -137,13 +169,17 @@ erDiagram
         string bookingId FK
         string date
         string timeSlot
+        long heldUntil "request + 1 hour"
+        bool accepted "Booked"
     }
 ```
 
 **Slots:** each active booking owns one `slots` document whose id is
 `providerId_date_slotNumber`. Only one document can have that id, so only one booking can hold
 a provider's slot. It is created in the same transaction as the booking and deleted when the
-booking is rejected, cancelled or completed (or moved when rescheduled). It contains no address
+booking is rejected, cancelled or completed (or moved when rescheduled). While the provider has
+not answered, other customers see the slot as **On hold**; after acceptance it is **Booked**. If
+there is no answer within 1 hour (`heldUntil`), the hold ends and someone else may book it. It contains no address
 or phone numbers, so bookings themselves stay private.
 
 Areas and time slots are fixed lists in Kotlin code (`FixedData.kt`). Categories start with 6
@@ -176,12 +212,18 @@ flowchart LR
         UC13["Block / unblock users"]
         UC14["Manage services & prices"]
         UC15["View dashboard & all bookings"]
-        UC16["View notifications"]
+        UC16["Notifications & push"]
+        UC17["Pay by UPI (test) / Cash"]
+        UC18["Chat about a booking"]
+        UC19["Apply coupon / offers"]
+        UC20["Redo within 7 days (redo PIN)"]
+        UC21["Manage coupons & categories"]
+        UC22["Change a user's password"]
     end
 
-    C --- UC1 & UC2 & UC3 & UC4 & UC5 & UC6 & UC7 & UC16
-    P --- UC1 & UC8 & UC9 & UC10 & UC11 & UC16
-    A --- UC12 & UC13 & UC14 & UC15
+    C --- UC1 & UC2 & UC3 & UC4 & UC5 & UC6 & UC7 & UC16 & UC17 & UC18 & UC19 & UC20
+    P --- UC1 & UC8 & UC9 & UC10 & UC11 & UC16 & UC18 & UC20
+    A --- UC12 & UC13 & UC14 & UC15 & UC21 & UC22
 ```
 
 ## 5. Booking status flow
@@ -196,7 +238,8 @@ stateDiagram-v2
     ACCEPTED --> CANCELLED : customer or provider cancels (reason)
     ACCEPTED --> REQUESTED : customer reschedules
     REQUESTED --> REQUESTED : customer reschedules
-    IN_PROGRESS --> COMPLETED : provider confirms payment received
+    IN_PROGRESS --> COMPLETED : provider completes (extras added)
+    COMPLETED --> COMPLETED : payment PENDING → PAID (cash collected / UPI paid)
     COMPLETED --> [*] : customer rates (once)
     REJECTED --> [*]
     CANCELLED --> [*]
@@ -224,8 +267,10 @@ sequenceDiagram
     Note over C,P: provider arrives, customer tells the PIN
     P->>F: start with PIN (transaction checks PIN)
     F-->>C: live update: IN_PROGRESS
-    P->>F: complete + payment received (transaction also adds earnings)
-    F-->>C: live update: COMPLETED + notification
+    P->>F: complete + extras (transaction also adds the job to the provider's totals)
+    F-->>C: live update: COMPLETED, "Pay ₹…" + push
+    C->>F: Pay now (Razorpay test) → PAID with payment ID
+    F-->>P: live update: "UPI payment received" + push
     C->>F: rate 1-5 stars (transaction updates provider average)
 ```
 
@@ -244,24 +289,27 @@ Take these on a real phone (Power + Volume down):
 - [ ] Notifications with unread badge
 - [ ] Rate & review · Receipt
 - [ ] Admin dashboard · Users (block) · Manage services (edit price) · All bookings filter
-- [ ] Firebase Console: Firestore collections · Authentication users list · Rules page
+- [ ] Book a service form · Review page with Offers for you · slot "On hold" / "Booked"
+- [ ] Customer Home "Needs your attention" · Pay now (Razorpay test) · Paid banner
+- [ ] Chat · a push in the notification bar · Next step box
+- [ ] Provider: Payments to collect · Cash collected · redo PIN
+- [ ] Admin: Coupons · Booking detail · Change password · badges
+- [ ] Firebase Console: Firestore collections · Authentication users list · Rules page · Vercel deployment
 
 ## 8. Future scope
 
-- Push notifications (Firebase Cloud Messaging)
-- Online payments (UPI intent / payment gateway)
-- In-app chat between customer and provider
-- Photos of the problem and provider ID verification documents
-- Maps and GPS: show distance, live provider location
-- Email verification at registration and phone OTP login
-- Admin sets a new password for a user directly: needs the Firebase Admin SDK on a server
-  (a Cloud Function on the Blaze plan) that checks the caller is the admin, sets the password,
-  signs the user out everywhere and emails them. Today the admin sends a secure reset link instead,
-  so nobody (not even the admin) ever knows another person's password.
-- Server-side checks with Cloud Functions (needs the paid Blaze plan)
-- Dark mode, Hindi/Gujarati languages, coupons and offers
-- Provider working hours and custom slots
+Already built in this version (were future scope earlier): push notifications, UPI payment (Razorpay
+test mode), in-app chat, coupons and offers, admin password change (free Vercel server).
 
+Still for the future:
+- **Server-side payment check** (Razorpay order + signature on the server) and server-side price/coupon calculation
+- **Hide PINs from the provider's download** (needs server code to check the PIN)
+- **Timed alerts** (e.g. the 1-hour "no answer" push even when the customer's app is closed) with a scheduled server
+- Photos of the problem and provider ID documents (Firebase Storage needs the paid Blaze plan)
+- Maps and live GPS tracking (Maps SDK needs a billing account; "Open in Maps" already works)
+- Phone OTP login, email verification at registration
+- Real (live-mode) payments after Razorpay KYC
+- Dark mode, Hindi / Gujarati languages, provider working hours and custom slots
 ## 8b. What makes ServiceHub different (for the "unique features" section)
 
 - **Race-proof booking:** a slot is claimed in the same transaction as the booking, so two
@@ -278,8 +326,14 @@ Take these on a real phone (Power + Volume down):
   the customer chooses; "⚡ Available today" finds someone for urgent jobs.
 - **Weekly days off designed for urgency:** a day off belongs to one provider and only blocks
   NEW bookings; other providers stay bookable, and existing jobs are never cancelled silently.
-- **7-day service guarantee:** if the problem returns within 7 days, the customer asks for a free
-  revisit in one tap; the provider sees it with a badge and marks it done.
+- **7-day service guarantee with a redo PIN:** if the problem returns within 7 days, the customer
+  asks for a free redo; the provider can mark it done only with the customer's redo PIN.
+- **Fair slot holds:** a requested slot is *On hold* for 1 hour; if the provider does not answer, it
+  opens again and the customer is offered another provider or time.
+- **Clear payment step:** cash is confirmed by the provider, UPI is confirmed by Razorpay automatically;
+  earnings count only money really received.
+- **One look, everywhere:** *Needs your attention* lists and a *Next step* box tell each user exactly what to do now.
+- **Offers like real apps:** active coupons are listed best-first with one-tap Apply.
 - **Honest billing:** spare parts are added as line items at completion, so the receipt shows
   exactly what was paid; the ₹49 visit fee is ServiceHub's platform income, providers keep the rest.
 - **"On my way":** the customer knows the professional is coming before the PIN step.
@@ -290,8 +344,8 @@ Take these on a real phone (Power + Volume down):
 
 | Person | Why they would use it | Why they might not (and future fix) |
 |---|---|---|
-| Customer | Fixed prices, verified providers, PIN safety, live timeline, free-slot view, receipts, complaints | Must register before browsing; alerts only inside the app (push = future) |
-| Provider | Free customers in their area, rating builds reputation, earnings, days off, Open in Maps | Can miss requests when the app is closed (push = future); prices are set by the platform |
+| Customer | Fixed prices, verified providers, PIN safety, live timeline, offers, UPI or cash, chat, push alerts, receipts, complaints | Must register before browsing; no photos of the problem yet |
+| Provider | Free customers in their area, rating builds reputation, clear payments and earnings, days off, chat, push alerts, Open in Maps | Prices are set by the platform; no live GPS yet |
 | Admin | Approvals, blocking, prices and new services, complaints, live dashboard and top providers | No ID document checks (photo upload = future) |
 
 ## 9. Likely viva questions (25) with short answers
@@ -314,10 +368,18 @@ Take these on a real phone (Power + Volume down):
 16. **Why the start PIN?** It proves the provider is actually at the customer's home before starting. The customer sees it only after acceptance; the job starts only with the correct PIN.
 17. **How is the average rating calculated?** newAverage = (oldAverage × oldCount + newRating) / (oldCount + 1), inside a transaction so two reviews at once cannot give a wrong result.
 18. **How do you prevent rating twice?** The review's document id is the booking id (only one can exist) and the booking gets `isRated = true`; the transaction refuses if either is already set.
-19. **How do notifications work without push?** Important events write a document in `notifications` for the other person. Their app listens live and shows an unread badge; tapping marks it read.
+19. **How do notifications and push work?** Every important event writes a document in `notifications` for the other person (live badge in the app). The app then asks our free Vercel server to send a push with Firebase Cloud Messaging; the server first checks the sender belongs to that booking. Tapping the push opens that booking or its chat.
 20. **What happens when the admin blocks a user?** `isBlocked = true`: they are logged out immediately (the app listens to their own document), cannot log in again, blocked providers are hidden, and security rules refuse their writes.
 21. **What do your security rules do?** Users edit only their own profile (never role or blocked status), only admin approves, blocks and edits services, bookings are readable and changeable only by their own customer, provider or admin, reviews are once and cannot be edited, notifications are private, blocked users cannot write.
 22. **Why store customer and provider names inside the booking?** So a booking and receipt always show correct details without extra reads, even if someone changes their profile later (denormalization).
-23. **How did you test the app?** 29 automatic logic tests (JUnit), Android lint (0 errors), a release build check, and a 70-case manual test script on two real phones.
-24. **What are the limitations?** No online payment, no push notifications, no GPS, no photos; business rules are checked in the app and by security rules, but there is no server code (Cloud Functions need the paid plan).
-25. **What would you add next?** Push notifications, UPI payment, chat, maps, provider ID verification, and Cloud Functions for server-side checks.
+23. **How did you test the app?** 50 automatic logic tests (JUnit) and a 163-case manual test script run on two real phones.
+24. **What are the limitations?** Payment is in Razorpay test mode and checked on the phone, not on a server; PINs are downloaded with the booking (hidden on screen); no GPS or photos (paid plans).
+25. **What would you add next?** A server payment check, server-side PIN check, timed alerts, photos, maps and real payments.
+
+**Extra questions on the newer features**
+
+26. **Why a Vercel server if you use Firebase?** Setting another user's password and sending pushes need the Firebase Admin SDK and a secret key, which must never be inside an app. Cloud Functions need the paid plan; Vercel's Hobby plan is free.
+27. **How do you know a Razorpay payment worked?** Razorpay returns a payment ID to the app; we save it on the booking with `paymentStatus = PAID`. In test mode `success@razorpay` succeeds and `failure@razorpay` fails.
+28. **Who confirms cash?** Only the provider (`Cash collected`); the rules stop a customer from marking cash paid.
+29. **How does the 1-hour hold work?** The slot document stores `heldUntil` = request time + 1 hour. Until then others see *On hold*; after it, the booking transaction may take the slot over unless the provider accepted (`accepted = true`).
+30. **How do coupons work?** The admin creates a code; the review page lists active coupons ranked by saving. The coupon is checked again when the booking is saved, and the rules allow a discount only with an active coupon. The discount is ServiceHub's offer, so the provider's share is unchanged.

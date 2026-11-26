@@ -23,6 +23,8 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
         super.onCreate(savedInstanceState)
         // Keep the category list (built-in + admin-added) up to date for the whole app.
         CategoryStore.start()
+        // Opened by tapping a push? Remember which booking screen to show.
+        com.example.servicehub.push.PushLink.take(intent)
         // Loads Razorpay's screen in advance so "Pay now" opens faster.
         if (RazorpayPayments.isConfigured) Checkout.preload(applicationContext)
         // Our app is always light, so ask for DARK status-bar icons (clock, battery)
@@ -36,6 +38,12 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
                 AppNavHost()
             }
         }
+    }
+
+    /** Push tapped while the app was already open. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        com.example.servicehub.push.PushLink.take(intent)
     }
 
     // ---- Razorpay results (passed on to RazorpayPayments, which tells the booking screen)

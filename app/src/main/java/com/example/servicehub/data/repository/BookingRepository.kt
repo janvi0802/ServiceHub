@@ -30,6 +30,10 @@ import kotlin.random.Random
 /** Start of cancelReason when the PROVIDER cancelled, so both sides can see who cancelled. */
 const val PROVIDER_CANCEL_PREFIX = "Provider: "
 
+/** Most that all extra parts / work on one job may add up to (₹50,000). Up to 10 items. */
+const val MAX_EXTRAS_TOTAL = 50_000
+const val MAX_EXTRA_ITEMS = 10
+
 /** An error we create ourselves, with a message that is safe to show the user. */
 class BookingException(message: String) : Exception(message)
 
@@ -583,9 +587,13 @@ object BookingRepository {
         val clean = extras.map { it.copy(name = it.name.trim()) }.filter { it.name.isNotEmpty() || it.amount > 0 }
         clean.forEach {
             if (it.name.isEmpty()) throw BookingException("Every extra item needs a name.")
-            if (it.amount !in 1..50_000) throw BookingException("Extra item amounts must be between ₹1 and ₹50,000.")
+            if (it.amount < 1) throw BookingException("Every extra item needs an amount of at least ₹1.")
         }
-        if (clean.size > 10) throw BookingException("Add at most 10 extra items.")
+        // The limit is for ALL extras together, not per item
+        if (clean.sumOf { it.amount } > MAX_EXTRAS_TOTAL) {
+            throw BookingException("Extra parts and work together can be at most ₹50,000.")
+        }
+        if (clean.size > MAX_EXTRA_ITEMS) throw BookingException("Add at most $MAX_EXTRA_ITEMS extra items.")
         return clean
     }
 

@@ -87,7 +87,7 @@ class NotificationsViewModel : ViewModel() {
  */
 @Composable
 fun NotificationsScreen(
-    onOpenBooking: (bookingId: String) -> Unit,
+    onOpenBooking: (bookingId: String, title: String) -> Unit,
     viewModel: NotificationsViewModel = viewModel(),
 ) {
     val list by viewModel.notifications.collectAsState()
@@ -120,7 +120,7 @@ fun NotificationsScreen(
                     items(list, key = { it.id }) { notification ->
                         NotificationCard(notification, onClick = {
                             viewModel.markRead(notification)
-                            if (notification.bookingId.isNotBlank()) onOpenBooking(notification.bookingId)
+                            if (notification.bookingId.isNotBlank()) onOpenBooking(notification.bookingId, notification.title)
                         })
                     }
                 }
